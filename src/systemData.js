@@ -1,434 +1,558 @@
-export const workspaces = [
+export const portalSections = [
   {
-    id: 'home',
-    label: 'Home',
-    path: '/',
-    tagline: 'System overview',
-    summary: 'Landing page for the municipal product vision, priorities, and build constraints.',
+    id: 'dashboard',
+    label: 'Dashboard',
+    path: '/dashboard',
+    eyebrow: 'Operations',
+    summary: 'Daily queue status, priority items, and workload balance for MSWD processing.',
   },
   {
-    id: 'public',
-    label: 'Public Portal',
-    path: '/public',
-    tagline: 'Programs and intake guidance',
-    summary: 'Resident-facing information about assistance programs, eligibility flow, and first-step intake.',
+    id: 'applications',
+    label: 'Applications',
+    path: '/applications',
+    eyebrow: 'Queue',
+    summary: 'Assigned applications, requirement checks, and the current case review workbench.',
   },
   {
-    id: 'resident',
-    label: 'Resident Portal',
-    path: '/resident',
-    tagline: 'Application tracking',
-    summary: 'Household-linked self-service page for statuses, uploads, and profile-linked records.',
+    id: 'households',
+    label: 'Households',
+    path: '/households',
+    eyebrow: 'Registry',
+    summary: 'Household lookup, profile review, and recent assistance history.',
   },
   {
-    id: 'staff',
-    label: 'Staff Workspace',
-    path: '/staff',
-    tagline: 'Review and approval queue',
-    summary: 'Operational workspace for validation, duplicate checks, and case management.',
+    id: 'reports',
+    label: 'Reports',
+    path: '/reports',
+    eyebrow: 'Reports',
+    summary: 'Operational summaries for backlog review, barangay workload, and export-ready outputs.',
   },
   {
-    id: 'analytics',
-    label: 'Analytics',
-    path: '/analytics',
-    tagline: 'Distribution and reporting',
-    summary: 'Barangay-level counts, reporting outputs, and fairness visibility for municipal planning.',
-  },
-  {
-    id: 'blueprint',
-    label: 'Blueprint',
-    path: '/blueprint',
-    tagline: 'Architecture and roadmap',
-    summary: 'Stack migration path, route map, schema scope, and phased delivery plan.',
+    id: 'settings',
+    label: 'Settings',
+    path: '/settings',
+    eyebrow: 'Controls',
+    summary: 'Core role, workflow, and audit rules applied inside the portal.',
   },
 ];
 
-export const roles = [
+export const dashboardStats = [
   {
-    name: 'Super Admin',
-    focus: 'Governance',
-    scope: 'Users, roles, settings, barangays, and audit controls',
+    label: 'Pending review',
+    value: '48',
+    trend: '11 new submissions since 8:00 AM',
+    tone: 'warning',
   },
   {
-    name: 'MSWDO Staff',
-    focus: 'Case review',
-    scope: 'Cross-barangay intake validation, approvals, and analytics',
+    label: 'Ready for approval',
+    value: '14',
+    trend: '3 cases are nearing SLA threshold',
+    tone: 'accent',
   },
   {
-    name: 'Barangay Staff',
-    focus: 'Encoding',
-    scope: 'Barangay-scoped household maintenance and assisted applications',
-  },
-  {
-    name: 'Resident',
-    focus: 'Self-service',
-    scope: 'Profile, household linkage, documents, status tracking',
+    label: 'Average turnaround',
+    value: '2.4 days',
+    trend: 'Within the 3-day review target',
+    tone: 'good',
   },
 ];
 
-export const programCards = [
+export const processingLanes = [
   {
-    name: 'AICS',
-    type: 'Emergency Assistance',
-    summary:
-      'For crisis-based support with fast screening, documentary review, and tracked disbursement history.',
-    highlights: [
-      'Configurable checklist',
-      'Household duplicate alerts',
-      'Approval remarks and release tracking',
-    ],
+    title: 'Intake',
+    count: '12',
+    note: 'New submissions waiting for processor assignment.',
   },
   {
-    name: 'TUPAD',
-    type: 'Livelihood Support',
-    summary:
-      'Supports short-term emergency employment with eligibility validation, scheduling, and beneficiary tagging.',
-    highlights: [
-      'Labor-oriented requirements',
-      'Barangay volume monitoring',
-      'Employment cycle history',
-    ],
+    title: 'Verification',
+    count: '21',
+    note: 'Identity and document checks in progress.',
   },
   {
-    name: '4Ps Monitoring',
-    type: 'Program Visibility',
-    summary:
-      'Tracks household participation, overlaps, and municipal-level descriptive insights for coordinated decision making.',
-    highlights: [
-      'Household participation view',
-      'Coverage gaps by barangay',
-      'Shared profile and assistance history',
-    ],
+    title: 'Final review',
+    count: '8',
+    note: 'Cases complete and waiting for supervisor action.',
   },
 ];
 
-export const processFlow = [
+export const priorityCases = [
   {
-    title: 'Resident registration',
-    description:
-      'The user creates an account or is encoded by staff, then completes identity and household details.',
+    reference: 'AICS-2026-00128',
+    applicant: 'Maria C. Dela Cruz',
+    program: 'AICS',
+    status: 'Need supervisor review',
+    tone: 'warning',
+    updatedAt: 'Mar 20, 2026 10:45 AM',
   },
   {
-    title: 'Guided screening',
-    description:
-      'The system applies shared checks first, then routes the case to one or more social programs.',
+    reference: 'AICS-2026-00133',
+    applicant: 'Danilo P. Serrano',
+    program: 'AICS',
+    status: 'Duplicate flagged',
+    tone: 'neutral',
+    updatedAt: 'Mar 20, 2026 10:28 AM',
   },
   {
-    title: 'Requirements upload',
-    description: 'Applicants submit program requirements with validation and secure storage policies.',
-  },
-  {
-    title: 'Staff verification',
-    description:
-      'Reviewers inspect duplicate risk, household history, barangay scope, and program compliance.',
-  },
-  {
-    title: 'Decision and release',
-    description:
-      'Approvals, rejections, requests for revision, and assistance release all feed the audit trail.',
-  },
-];
-
-export const dashboardCards = [
-  {
-    label: 'Linked household',
-    value: 'B-04-118',
-    trend: 'Head of household verified on March 18, 2026',
-  },
-  { label: 'Open applications', value: '2', trend: 'One for AICS and one for TUPAD pre-screening' },
-  {
-    label: 'Unread notices',
-    value: '3',
-    trend: 'Review remarks and barangay confirmation reminders',
-  },
-  {
-    label: 'Required uploads',
-    value: '1',
-    trend: 'Income certification still pending for TUPAD',
+    reference: 'AICS-2026-00115',
+    applicant: 'Rosa B. Ignacio',
+    program: 'AICS',
+    status: 'Ready for release',
+    tone: 'good',
+    updatedAt: 'Mar 20, 2026 08:55 AM',
   },
 ];
 
-export const householdRecords = [
+export const applicationStats = [
   {
-    label: 'Barangay',
-    value: 'Poblacion',
-    note: 'Mapped to barangay-scoped staff access policies',
+    label: 'Assigned today',
+    value: '18',
+    trend: 'Across AICS and TUPAD',
+    tone: 'accent',
   },
   {
-    label: 'Members',
-    value: '6 residents',
-    note: 'Includes senior citizen and one dependent in school',
+    label: 'For verification',
+    value: '21',
+    trend: 'Includes duplicate and document checks',
+    tone: 'default',
   },
   {
-    label: 'Income profile',
-    value: 'Seasonal labor',
-    note: 'Used for vulnerability and eligibility assessment',
-  },
-  {
-    label: 'Assistance history',
-    value: '1 prior AICS release',
-    note: 'Prevents duplicate approval without reviewer confirmation',
+    label: 'For approval',
+    value: '14',
+    trend: '3 cases older than SLA',
+    tone: 'warning',
   },
 ];
 
-export const queueItems = [
+export const filterChips = ['All cases', 'Needs review', 'Needs documents'];
+
+export const applicationQueue = [
+  {
+    reference: 'AICS-2026-00133',
+    applicant: 'Danilo P. Serrano',
+    barangay: 'Mayha',
+    program: 'AICS',
+    status: 'Duplicate flagged',
+    tone: 'neutral',
+    age: '3h',
+  },
   {
     reference: 'AICS-2026-00128',
     applicant: 'Maria C. Dela Cruz',
     barangay: 'Poblacion',
     program: 'AICS',
-    status: 'Under Review',
-    statusTone: 'warning',
-    updatedAt: 'Mar 20, 2026',
+    status: 'Supervisor review',
+    tone: 'warning',
+    age: '5h',
   },
   {
     reference: 'TUPAD-2026-00044',
     applicant: 'Joel A. Salangsang',
     barangay: 'Mayha',
     program: 'TUPAD',
-    status: 'Needs More Info',
-    statusTone: 'neutral',
-    updatedAt: 'Mar 19, 2026',
+    status: 'Need applicant revision',
+    tone: 'default',
+    age: '1d',
   },
   {
     reference: 'AICS-2026-00115',
     applicant: 'Rosa B. Ignacio',
     barangay: 'Badiangan',
     program: 'AICS',
-    status: 'Verified',
-    statusTone: 'good',
-    updatedAt: 'Mar 19, 2026',
+    status: 'Ready for release',
+    tone: 'good',
+    age: '1d',
   },
   {
-    reference: '4PS-2026-00009',
-    applicant: 'Janet P. Domingo',
-    barangay: 'Torocadan',
-    program: '4Ps',
-    status: 'Submitted',
-    statusTone: 'default',
-    updatedAt: 'Mar 18, 2026',
-  },
-];
-
-export const moduleCards = [
-  {
-    title: 'Household master records',
-    summary:
-      'Addresses, members, vulnerability indicators, land data, and all assistance history in one profile.',
-  },
-  {
-    title: 'Case review workspace',
-    summary:
-      'Status queue, document panel, duplicate flags, notes, and approval actions with remarks.',
-  },
-  {
-    title: 'Program configuration',
-    summary:
-      'Manage AICS, TUPAD, and 4Ps requirements, status labels, and screening logic without hardcoding.',
-  },
-  {
-    title: 'Audit and notifications',
-    summary: 'Every sensitive action is logged and can trigger staff or resident updates.',
+    reference: 'TUPAD-2026-00047',
+    applicant: 'Josephine L. Tajan',
+    barangay: 'Alojipan',
+    program: 'TUPAD',
+    status: 'Under verification',
+    tone: 'warning',
+    age: '2d',
   },
 ];
 
-export const duplicateAlerts = [
+export const defaultApplicationReference = 'AICS-2026-00128';
+
+export const applicationCaseDetails = {
+  'AICS-2026-00128': {
+    reference: 'AICS-2026-00128',
+    applicant: 'Maria C. Dela Cruz',
+    household: 'HH-PBL-0442',
+    program: 'AICS',
+    submittedAt: 'Mar 20, 2026 8:06 AM',
+    supportType: 'Medical assistance',
+    checks: [
+      {
+        title: 'Identity verified',
+        description: 'PhilSys ID and barangay certificate match the resident profile.',
+        state: 'complete',
+      },
+      {
+        title: 'Duplicate scan',
+        description: 'One historic AICS release found within 90 days. Supervisor review required.',
+        state: 'alert',
+      },
+      {
+        title: 'Requirements',
+        description: 'Hospital bill and medical abstract uploaded. Social case study still pending.',
+        state: 'pending',
+      },
+    ],
+    documents: [
+      { name: 'PhilSys ID', status: 'Verified', tone: 'good' },
+      { name: 'Barangay certification', status: 'Verified', tone: 'good' },
+      { name: 'Hospital bill', status: 'Verified', tone: 'good' },
+      { name: 'Social case study report', status: 'Missing', tone: 'warning' },
+    ],
+  },
+  'AICS-2026-00133': {
+    reference: 'AICS-2026-00133',
+    applicant: 'Danilo P. Serrano',
+    household: 'HH-MAY-0118',
+    program: 'AICS',
+    submittedAt: 'Mar 20, 2026 7:42 AM',
+    supportType: 'Food and cash relief',
+    checks: [
+      {
+        title: 'Identity verified',
+        description: 'Applicant identity and household registry record already match.',
+        state: 'complete',
+      },
+      {
+        title: 'Duplicate scan',
+        description: 'Recent release found. Supervisor acknowledgment is still required.',
+        state: 'alert',
+      },
+      {
+        title: 'Requirements',
+        description: 'Required intake documents are complete and ready for review.',
+        state: 'complete',
+      },
+    ],
+    documents: [
+      { name: 'PhilSys ID', status: 'Verified', tone: 'good' },
+      { name: 'Barangay certification', status: 'Verified', tone: 'good' },
+      { name: 'Case intake form', status: 'Verified', tone: 'good' },
+      { name: 'Duplicate review note', status: 'Pending', tone: 'warning' },
+    ],
+  },
+  'TUPAD-2026-00044': {
+    reference: 'TUPAD-2026-00044',
+    applicant: 'Joel A. Salangsang',
+    household: 'HH-TOR-0036',
+    program: 'TUPAD',
+    submittedAt: 'Mar 19, 2026 3:18 PM',
+    supportType: 'Emergency employment assistance',
+    checks: [
+      {
+        title: 'Identity verified',
+        description: 'Resident profile is valid and barangay endorsement is on file.',
+        state: 'complete',
+      },
+      {
+        title: 'Eligibility review',
+        description: 'Employment eligibility can proceed once the signed undertaking is re-uploaded.',
+        state: 'pending',
+      },
+      {
+        title: 'Requirements',
+        description: 'One applicant-signed form is still unreadable.',
+        state: 'pending',
+      },
+    ],
+    documents: [
+      { name: 'Resident ID', status: 'Verified', tone: 'good' },
+      { name: 'Barangay endorsement', status: 'Verified', tone: 'good' },
+      { name: 'Signed undertaking', status: 'Needs re-upload', tone: 'warning' },
+      { name: 'Program intake form', status: 'Verified', tone: 'good' },
+    ],
+  },
+  'AICS-2026-00115': {
+    reference: 'AICS-2026-00115',
+    applicant: 'Rosa B. Ignacio',
+    household: 'HH-BAD-0201',
+    program: 'AICS',
+    submittedAt: 'Mar 19, 2026 9:25 AM',
+    supportType: 'Medical assistance',
+    checks: [
+      {
+        title: 'Identity verified',
+        description: 'Resident identity and household record are fully validated.',
+        state: 'complete',
+      },
+      {
+        title: 'Duplicate scan',
+        description: 'No conflicting releases found for the review period.',
+        state: 'complete',
+      },
+      {
+        title: 'Requirements',
+        description: 'All required medical documents are complete.',
+        state: 'complete',
+      },
+    ],
+    documents: [
+      { name: 'PhilSys ID', status: 'Verified', tone: 'good' },
+      { name: 'Medical abstract', status: 'Verified', tone: 'good' },
+      { name: 'Hospital bill', status: 'Verified', tone: 'good' },
+      { name: 'Case study report', status: 'Verified', tone: 'good' },
+    ],
+  },
+  'TUPAD-2026-00047': {
+    reference: 'TUPAD-2026-00047',
+    applicant: 'Josephine L. Tajan',
+    household: 'HH-ALO-0077',
+    program: 'TUPAD',
+    submittedAt: 'Mar 18, 2026 1:11 PM',
+    supportType: 'Temporary employment assistance',
+    checks: [
+      {
+        title: 'Identity verified',
+        description: 'Resident information is matched to the household record.',
+        state: 'complete',
+      },
+      {
+        title: 'Eligibility review',
+        description: 'Current verification is waiting on barangay employment certification.',
+        state: 'progress',
+      },
+      {
+        title: 'Requirements',
+        description: 'Barangay certification is still pending confirmation.',
+        state: 'pending',
+      },
+    ],
+    documents: [
+      { name: 'Resident ID', status: 'Verified', tone: 'good' },
+      { name: 'Barangay certification', status: 'Pending', tone: 'warning' },
+      { name: 'Program intake form', status: 'Verified', tone: 'good' },
+      { name: 'Employment screening note', status: 'Under review', tone: 'neutral' },
+    ],
+  },
+};
+
+export const reviewActions = [
+  'Request missing requirements',
+  'Forward to supervisor review',
+  'Approve for assistance release',
+];
+
+export const householdRows = [
   {
-    title: 'Shared address match',
-    description:
-      'The same household address appears on a previously released AICS case within the last 90 days.',
+    code: 'HH-PBL-0442',
+    head: 'Maria C. Dela Cruz',
+    barangay: 'Poblacion',
+    members: '6',
+    openCases: '2',
   },
   {
-    title: 'Possible identity overlap',
-    description:
-      'Applicant name and birth date closely match an existing resident record from another program entry.',
+    code: 'HH-MAY-0118',
+    head: 'Danilo P. Serrano',
+    barangay: 'Mayha',
+    members: '4',
+    openCases: '1',
   },
   {
-    title: 'Cross-program assistance history',
-    description:
-      'Two household members already have active assistance records that may affect eligibility.',
+    code: 'HH-BAD-0201',
+    head: 'Rosa B. Ignacio',
+    barangay: 'Badiangan',
+    members: '5',
+    openCases: '1',
+  },
+  {
+    code: 'HH-ALO-0077',
+    head: 'Josephine L. Tajan',
+    barangay: 'Alojipan',
+    members: '7',
+    openCases: '1',
   },
 ];
 
-export const analyticsCards = [
+export const defaultHouseholdCode = 'HH-PBL-0442';
+
+export const householdDetailsByCode = {
+  'HH-PBL-0442': {
+    profile: [
+      { label: 'Address', value: 'Purok 3, Poblacion, Barbaza, Antique' },
+      { label: 'Income source', value: 'Seasonal labor and small vending' },
+      { label: 'Last assistance', value: 'AICS release on Jan 14, 2026' },
+      { label: 'Open cases', value: '2 active applications' },
+    ],
+    history: [
+      {
+        date: 'Jan 14, 2026',
+        program: 'AICS',
+        details: 'Medical assistance released after emergency admission.',
+      },
+      {
+        date: 'Sep 03, 2025',
+        program: 'Food support',
+        details: 'LGU emergency food pack after typhoon response.',
+      },
+      {
+        date: 'Jun 19, 2025',
+        program: 'Case study',
+        details: 'Initial vulnerability assessment encoded by barangay staff.',
+      },
+    ],
+  },
+  'HH-MAY-0118': {
+    profile: [
+      { label: 'Address', value: 'Sitio Proper, Mayha, Barbaza, Antique' },
+      { label: 'Income source', value: 'Construction work and tricycle driving' },
+      { label: 'Last assistance', value: 'Food support on Nov 28, 2025' },
+      { label: 'Open cases', value: '1 active application' },
+    ],
+    history: [
+      {
+        date: 'Nov 28, 2025',
+        program: 'Food support',
+        details: 'Emergency household food assistance after income disruption.',
+      },
+      {
+        date: 'Apr 12, 2025',
+        program: 'AICS',
+        details: 'One-time transport assistance for medical follow-up.',
+      },
+    ],
+  },
+  'HH-BAD-0201': {
+    profile: [
+      { label: 'Address', value: 'Purok 5, Badiangan, Barbaza, Antique' },
+      { label: 'Income source', value: 'Fishing and sari-sari store sales' },
+      { label: 'Last assistance', value: 'Medical support on Feb 02, 2026' },
+      { label: 'Open cases', value: '1 active application' },
+    ],
+    history: [
+      {
+        date: 'Feb 02, 2026',
+        program: 'AICS',
+        details: 'Medical reimbursement released for outpatient treatment.',
+      },
+      {
+        date: 'Aug 21, 2025',
+        program: 'Case study',
+        details: 'Social worker assessment updated the household risk profile.',
+      },
+    ],
+  },
+  'HH-ALO-0077': {
+    profile: [
+      { label: 'Address', value: 'Sitio Baybay, Alojipan, Barbaza, Antique' },
+      { label: 'Income source', value: 'Laundry service and seasonal farm labor' },
+      { label: 'Last assistance', value: 'No releases in the past 12 months' },
+      { label: 'Open cases', value: '1 active application' },
+    ],
+    history: [
+      {
+        date: 'Jul 05, 2025',
+        program: 'Food support',
+        details: 'Temporary food assistance released during flood recovery.',
+      },
+      {
+        date: 'Mar 17, 2025',
+        program: 'Registry update',
+        details: 'Household composition updated after residency verification.',
+      },
+    ],
+  },
+};
+
+export const reportStats = [
   {
-    label: 'Total households',
-    value: '4,286',
-    trend: '+143 records added this quarter',
+    label: 'Aged beyond SLA',
+    value: '3',
+    trend: 'All pending supervisor decision',
+    tone: 'warning',
+  },
+  {
+    label: 'Approvals this month',
+    value: '124',
+    trend: 'Up 18% from February',
+    tone: 'good',
+  },
+  {
+    label: 'Released assistance',
+    value: 'PHP 842K',
+    trend: 'Across AICS and TUPAD support',
     tone: 'accent',
   },
-  { label: 'Applicants', value: '1,184', trend: '64 pending verification this week', tone: 'default' },
+];
+
+export const workloadByBarangay = [
+  { barangay: 'Poblacion', pending: 12, approved: 31 },
+  { barangay: 'Mayha', pending: 9, approved: 24 },
+  { barangay: 'Badiangan', pending: 7, approved: 19 },
+  { barangay: 'Alojipan', pending: 6, approved: 16 },
+  { barangay: 'Torocadan', pending: 5, approved: 14 },
+];
+
+export const exportCards = [
   {
-    label: 'Unserved households',
-    value: '1,902',
-    trend: 'Priority list for outreach planning',
-    tone: 'warning',
+    title: 'Daily queue summary',
+    metric: '48 active cases',
+    note: 'Snapshot of intake, approvals, and returned applications.',
   },
   {
-    label: 'Duplicate-flagged cases',
-    value: '37',
-    trend: 'Requires manual review before release',
-    tone: 'warning',
+    title: 'Barangay workload report',
+    metric: '5 barangays in review',
+    note: 'Pending and approved cases by barangay.',
+  },
+  {
+    title: 'Release ledger',
+    metric: '32 releases this week',
+    note: 'Approved assistance ready for validation or release tracking.',
   },
 ];
 
-export const beneficiaryDistribution = [
-  { label: 'Poblacion', value: 184 },
-  { label: 'Mayha', value: 151 },
-  { label: 'Badiangan', value: 129 },
-  { label: 'Torocadan', value: 106 },
-  { label: 'Alojipan', value: 92 },
+export const complianceItems = [
+  'Every status change records the user, timestamp, and remarks.',
+  'Returned applications stay locked until missing requirements are revalidated.',
+  'Duplicate household matches require supervisor acknowledgment before release.',
 ];
 
-export const reports = [
+export const settingsGroups = [
   {
-    title: 'Household master list',
-    metric: '4,286 households',
-    note: 'Filter by barangay, encoded date, and household assistance status',
-  },
-  {
-    title: 'Beneficiaries by program',
-    metric: 'AICS 612 | TUPAD 298 | 4Ps 447',
-    note: 'Supports quarterly service distribution review',
-  },
-  {
-    title: 'Applications by status',
-    metric: 'Submitted 84 | Review 64 | Approved 239',
-    note: 'Useful for queue balancing and staffing decisions',
-  },
-  {
-    title: 'Non-beneficiary households',
-    metric: '1,902 households',
-    note: 'Supports fairness analysis and barangay outreach planning',
-  },
-];
-
-export const architectureLayers = [
-  {
-    title: 'Frontend shell',
-    summary:
-      'React + Vite + TypeScript with route-based workspaces, reusable form components, and query-managed data flows.',
-  },
-  {
-    title: 'Access and policy layer',
-    summary: 'Supabase Auth, role resolution, guarded routes, and RLS policies per role and barangay scope.',
-  },
-  {
-    title: 'Data domain',
-    summary:
-      'Postgres tables centered on households, applications, programs, assistance records, and status history.',
-  },
-  {
-    title: 'Storage and automation',
-    summary:
-      'Secure document buckets, notification workflows, audit logging, and edge-function backed approval actions.',
-  },
-];
-
-export const routeGroups = [
-  {
-    title: 'Public',
-    routes: ['/', '/programs', '/eligibility', '/requirements', '/faqs', '/contact'],
-  },
-  {
-    title: 'Resident',
-    routes: [
-      '/resident/dashboard',
-      '/resident/applications/new',
-      '/resident/applications/:id',
-      '/resident/profile',
+    title: 'Access roles',
+    items: [
+      'MSWD Processor: triage, verify, request revision, encode notes',
+      'MSWD Supervisor: approve, reject, override duplicate alerts',
+      'Records Admin: manage users, barangays, program controls, and audit exports',
     ],
   },
   {
-    title: 'Staff',
-    routes: [
-      '/staff/dashboard',
-      '/staff/queue',
-      '/staff/review/:id',
-      '/staff/households',
-      '/staff/reports',
-    ],
-  },
-  {
-    title: 'Admin',
-    routes: ['/admin/users', '/admin/programs', '/admin/barangays', '/admin/settings', '/admin/audit-logs'],
-  },
-];
-
-export const tableGroups = [
-  {
-    title: 'Identity and access',
-    tables: ['profiles', 'roles', 'user_roles', 'barangays', 'settings'],
-  },
-  {
-    title: 'Household domain',
-    tables: ['households', 'household_members', 'residents', 'land_records'],
-  },
-  {
-    title: 'Applications',
-    tables: [
-      'social_programs',
-      'program_requirements',
-      'applications',
-      'application_programs',
-      'application_documents',
-    ],
-  },
-  {
-    title: 'Operations and audit',
-    tables: [
-      'assistance_records',
-      'eligibility_assessments',
-      'status_history',
-      'internal_notes',
-      'notifications',
-      'audit_logs',
+    title: 'Workflow rules',
+    items: [
+      'New submissions auto-assign by program and current staff capacity',
+      'Cases older than 48 hours trigger SLA alerts',
+      'Duplicate flags lock release actions until reviewed',
     ],
   },
 ];
 
-export const phasePlan = [
+export const auditHighlights = [
   {
-    title: 'Phase 1',
-    summary:
-      'Set up Vite, TypeScript, auth foundations, role model, barangay data, and household records management.',
+    title: 'Approval safeguards',
+    summary: 'Final approval requires remarks and supervisor confirmation.',
   },
   {
-    title: 'Phase 2',
-    summary:
-      'Deliver resident intake, application wizard, requirements upload, review queue, and approval statuses.',
-  },
-  {
-    title: 'Phase 3',
-    summary:
-      'Add AICS, TUPAD, and 4Ps configuration, program-specific rules, and beneficiary tracking.',
-  },
-  {
-    title: 'Phase 4',
-    summary:
-      'Build descriptive analytics, chart filters, report exports, and barangay fairness dashboards.',
-  },
-  {
-    title: 'Phase 5',
-    summary:
-      'Harden audit trails, automated notifications, test coverage, security review, and deployment setup.',
+    title: 'Document retention',
+    summary: 'Sensitive uploads stay in protected storage with role-based access only.',
   },
 ];
 
-export const implementationSteps = [
-  'Migrate the repo from Create React App to Vite and switch source files to TypeScript.',
-  'Install Tailwind CSS, shadcn/ui, React Router, TanStack Query, React Hook Form, and Zod.',
-  'Create a Supabase project with seed data for barangays, roles, and social programs.',
-  'Write SQL migrations for the household-first schema and enable RLS on every exposed table.',
-  'Implement auth, role-aware route guards, and barangay-scoped access rules before CRUD features.',
-  'Wire document uploads, review queue actions, analytics queries, and audit logging in phased releases.',
+export const monthlyApprovals = [
+  { month: 'Oct', count: 78 },
+  { month: 'Nov', count: 91 },
+  { month: 'Dec', count: 65 },
+  { month: 'Jan', count: 104 },
+  { month: 'Feb', count: 105 },
+  { month: 'Mar', count: 124 },
 ];
 
-export const businessRules = [
-  'Every application must be linked to both a resident and a household record.',
-  'Barangay users are restricted to their barangay unless an elevated role grants wider scope.',
-  'Program requirements must remain configurable and not hardcoded inside the UI.',
-  'All status transitions need timestamps, user context, and remarks for auditability.',
-  'Duplicate checks must evaluate resident identity, address overlap, government ID, and prior assistance history.',
-  'Archived records should be excluded from analytics unless explicitly requested.',
-];
+export const programBreakdown = {
+  labels: ['AICS', 'TUPAD', 'Food Support', 'Other'],
+  values: [61, 22, 11, 6],
+};
