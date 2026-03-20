@@ -1,8 +1,20 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import App from './App';
 
-test('renders learn react link', () => {
+test('renders the system heading and page navigation', () => {
   render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
+
+  expect(
+    screen.getByText(/Barbaza Records Management System with Data Analytics/i)
+  ).toBeInTheDocument();
+
+  window.location.hash = '#/analytics';
+  fireEvent(
+    window,
+    new HashChangeEvent('hashchange', {
+      newURL: 'http://localhost/#/analytics',
+    })
+  );
+
+  expect(screen.getByText(/Beneficiaries by Barangay/i)).toBeInTheDocument();
 });
