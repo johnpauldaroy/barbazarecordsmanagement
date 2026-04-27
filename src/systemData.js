@@ -50,10 +50,10 @@ export const dashboardStats = [
     tone: 'accent',
   },
   {
-    label: 'Average turnaround',
-    value: '2.4 days',
-    trend: 'Within the 3-day review target',
-    tone: 'good',
+    label: 'SLA breaches (48h+)',
+    value: '7',
+    trend: 'Pending cases beyond 48 hours',
+    tone: 'warning',
   },
 ];
 
@@ -173,6 +173,55 @@ export const applicationQueue = [
   },
 ];
 
+export const demoPrograms = [
+  {
+    id: 'prog-aics',
+    code: 'AICS',
+    name: 'AICS',
+    category: 'Emergency assistance',
+    supportLabel: 'Emergency assistance',
+    requirements: [
+      {
+        id: 'req-aics-valid-id',
+        requirement_code: 'VALID_GOV_ID',
+        label: 'Valid Government ID',
+        description: 'Any current government-issued ID.',
+        is_required: true,
+      },
+      {
+        id: 'req-aics-barangay-cert',
+        requirement_code: 'BARANGAY_CERT',
+        label: 'Barangay certification',
+        description: 'Barangay certification confirming residency or emergency need.',
+        is_required: true,
+      },
+    ],
+  },
+  {
+    id: 'prog-tupad',
+    code: 'TUPAD',
+    name: 'TUPAD',
+    category: 'Emergency employment assistance',
+    supportLabel: 'Emergency employment assistance',
+    requirements: [
+      {
+        id: 'req-tupad-valid-id',
+        requirement_code: 'VALID_GOV_ID',
+        label: 'Valid Government ID',
+        description: 'Any current government-issued ID.',
+        is_required: true,
+      },
+      {
+        id: 'req-tupad-undertaking',
+        requirement_code: 'SIGNED_UNDERTAKING',
+        label: 'Signed undertaking',
+        description: 'Signed worker undertaking form.',
+        is_required: true,
+      },
+    ],
+  },
+];
+
 export const defaultApplicationReference = 'AICS-2026-00128';
 
 export const applicationCaseDetails = {
@@ -183,6 +232,26 @@ export const applicationCaseDetails = {
     program: 'AICS',
     submittedAt: 'Mar 20, 2026 8:06 AM',
     supportType: 'Medical assistance',
+    history: [
+      {
+        timestamp: 'Mar 20, 2026 8:06 AM',
+        action: 'Application submitted',
+        actor: 'Applicant portal',
+        note: 'Medical assistance request was filed with hospital bill and ID attachments.',
+      },
+      {
+        timestamp: 'Mar 20, 2026 8:41 AM',
+        action: 'Identity verified',
+        actor: 'Ana B. Ramos',
+        note: 'Resident profile and barangay certification matched the household registry.',
+      },
+      {
+        timestamp: 'Mar 20, 2026 9:05 AM',
+        action: 'Duplicate risk flagged',
+        actor: 'System rule',
+        note: 'Previous AICS release found within the 90-day duplicate-check window.',
+      },
+    ],
     checks: [
       {
         title: 'Identity verified',
@@ -214,6 +283,26 @@ export const applicationCaseDetails = {
     program: 'AICS',
     submittedAt: 'Mar 20, 2026 7:42 AM',
     supportType: 'Food and cash relief',
+    history: [
+      {
+        timestamp: 'Mar 20, 2026 7:42 AM',
+        action: 'Application submitted',
+        actor: 'Barangay encoder',
+        note: 'Emergency relief request encoded for household income disruption.',
+      },
+      {
+        timestamp: 'Mar 20, 2026 8:10 AM',
+        action: 'Documents validated',
+        actor: 'Ana B. Ramos',
+        note: 'ID, barangay certification, and intake form were marked complete.',
+      },
+      {
+        timestamp: 'Mar 20, 2026 8:22 AM',
+        action: 'Duplicate case review started',
+        actor: 'System rule',
+        note: 'Recent assistance history requires supervisor acknowledgment before release.',
+      },
+    ],
     checks: [
       {
         title: 'Identity verified',
@@ -245,6 +334,26 @@ export const applicationCaseDetails = {
     program: 'TUPAD',
     submittedAt: 'Mar 19, 2026 3:18 PM',
     supportType: 'Emergency employment assistance',
+    history: [
+      {
+        timestamp: 'Mar 19, 2026 3:18 PM',
+        action: 'Application submitted',
+        actor: 'Barangay encoder',
+        note: 'TUPAD assistance request logged with worker profile and endorsement.',
+      },
+      {
+        timestamp: 'Mar 19, 2026 4:05 PM',
+        action: 'Eligibility screening opened',
+        actor: 'Ana B. Ramos',
+        note: 'Review started after validating the resident profile and barangay endorsement.',
+      },
+      {
+        timestamp: 'Mar 20, 2026 7:26 AM',
+        action: 'Revision requested',
+        actor: 'Ana B. Ramos',
+        note: 'Signed undertaking was unreadable and needs a clean re-upload before approval.',
+      },
+    ],
     checks: [
       {
         title: 'Identity verified',
@@ -276,6 +385,26 @@ export const applicationCaseDetails = {
     program: 'AICS',
     submittedAt: 'Mar 19, 2026 9:25 AM',
     supportType: 'Medical assistance',
+    history: [
+      {
+        timestamp: 'Mar 19, 2026 9:25 AM',
+        action: 'Application submitted',
+        actor: 'Applicant portal',
+        note: 'Medical assistance package submitted with complete documentary support.',
+      },
+      {
+        timestamp: 'Mar 19, 2026 10:14 AM',
+        action: 'Case verified',
+        actor: 'Ana B. Ramos',
+        note: 'All identity, household, and medical documents passed review.',
+      },
+      {
+        timestamp: 'Mar 19, 2026 11:02 AM',
+        action: 'Queued for release',
+        actor: 'MSWD Supervisor',
+        note: 'Application cleared for financial assistance release scheduling.',
+      },
+    ],
     checks: [
       {
         title: 'Identity verified',
@@ -307,6 +436,26 @@ export const applicationCaseDetails = {
     program: 'TUPAD',
     submittedAt: 'Mar 18, 2026 1:11 PM',
     supportType: 'Temporary employment assistance',
+    history: [
+      {
+        timestamp: 'Mar 18, 2026 1:11 PM',
+        action: 'Application submitted',
+        actor: 'Barangay encoder',
+        note: 'Temporary employment assistance application was created for screening.',
+      },
+      {
+        timestamp: 'Mar 18, 2026 3:42 PM',
+        action: 'Verification ongoing',
+        actor: 'Ana B. Ramos',
+        note: 'Resident identity cleared while barangay employment certification remains pending.',
+      },
+      {
+        timestamp: 'Mar 19, 2026 8:30 AM',
+        action: 'Follow-up requested',
+        actor: 'Ana B. Ramos',
+        note: 'Barangay certification follow-up sent before eligibility review can proceed.',
+      },
+    ],
     checks: [
       {
         title: 'Identity verified',
@@ -513,6 +662,49 @@ export const complianceItems = [
   'Duplicate household matches require supervisor acknowledgment before release.',
 ];
 
+export const userRoles = [
+  { key: 'super_admin', name: 'Super Admin', description: 'Full governance access for users, roles, settings, and audit logs.' },
+  { key: 'mswdo_staff', name: 'MSWDO Staff', description: 'Can view/review applicants, manage social programs, and view data analytics.' },
+  { key: 'mswdo_approver', name: 'MSWDO Approver', description: 'Specialized role for final approval and release of assistance packages.' },
+  { key: 'barangay_secretary', name: 'Barangay Secretary', description: 'Manage households, add applicants, view status, social programs, and land info.' },
+];
+
+export const demoUsers = [
+  {
+    id: 'usr-001',
+    displayName: 'Ana B. Ramos',
+    email: 'ana.ramos@barbaza.gov.ph',
+    role: 'mswdo_staff',
+    barangayId: null,
+    barangayName: null,
+    barangayCode: null,
+    isActive: true,
+    lastSignIn: '2026-03-20T08:30:00Z'
+  },
+  {
+    id: 'usr-002',
+    displayName: 'Juan D. Cruz',
+    email: 'juan.cruz@barbaza.gov.ph',
+    role: 'super_admin',
+    barangayId: null,
+    barangayName: null,
+    barangayCode: null,
+    isActive: true,
+    lastSignIn: '2026-03-20T09:15:00Z'
+  },
+  {
+    id: 'usr-003',
+    displayName: 'Maria L. Santos',
+    email: 'maria.santos@barbaza.gov.ph',
+    role: 'barangay_secretary',
+    barangayId: 'demo-bgy-mayha',
+    barangayName: 'Mayha',
+    barangayCode: 'MAYHA',
+    isActive: true,
+    lastSignIn: '2026-03-19T16:45:00Z'
+  }
+];
+
 export const settingsGroups = [
   {
     title: 'Access roles',
@@ -552,7 +744,58 @@ export const monthlyApprovals = [
   { month: 'Mar', count: 124 },
 ];
 
+export const slaTrend = [
+  { period: 'Oct', breaches: 14, withinSla: 43 },
+  { period: 'Nov', breaches: 11, withinSla: 49 },
+  { period: 'Dec', breaches: 13, withinSla: 36 },
+  { period: 'Jan', breaches: 9, withinSla: 58 },
+  { period: 'Feb', breaches: 8, withinSla: 61 },
+  { period: 'Mar', breaches: 7, withinSla: 66 },
+];
+
 export const programBreakdown = {
   labels: ['AICS', 'TUPAD', 'Food Support', 'Other'],
   values: [61, 22, 11, 6],
 };
+export const barbazaBarangays = [
+  { code: 'ABACA', name: 'Abaca' },
+  { code: 'BAGHARI', name: 'Baghari' },
+  { code: 'BAHUYAN', name: 'Bahuyan' },
+  { code: 'BERI', name: 'Beri' },
+  { code: 'BIGA-A', name: 'Biga-a' },
+  { code: 'BINANGBANG', name: 'Binangbang' },
+  { code: 'BINONGAAN', name: 'Binongaan' },
+  { code: 'CADIAO', name: 'Cadiao' },
+  { code: 'CAPOYUAN', name: 'Capoyuan' },
+  { code: 'ESPARAR', name: 'Esparar' },
+  { code: 'GUA', 'name': 'Gua' },
+  { code: 'IDAO', 'name': 'Idao' },
+  { code: 'IGPALGE', 'name': 'Igpalge' },
+  { code: 'IGTUNARUM', 'name': 'Igtunarum' },
+  { code: 'IPIL', 'name': 'Ipil' },
+  { code: 'JINALINAN', 'name': 'Jinalinan' },
+  { code: 'LANAS', 'name': 'Lanas' },
+  { code: 'LANGCAON', 'name': 'Langcaon' },
+  { code: 'LISUB', 'name': 'Lisub' },
+  { code: 'MABLAD', 'name': 'Mablad' },
+  { code: 'MAGTULIS', 'name': 'Magtulis' },
+  { code: 'MARADIONA', 'name': 'Maradiona' },
+  { code: 'MARARI', 'name': 'Marari' },
+  { code: 'MAYABAY', 'name': 'Mayabay' },
+  { code: 'MAYHA', 'name': 'Mayha' },
+  { code: 'NALOOK', 'name': 'Nalook' },
+  { code: 'NARIRONG', 'name': 'Narirong' },
+  { code: 'PALMIRA', 'name': 'Palmira' },
+  { code: 'PANGPANG', 'name': 'Pangpang' },
+  { code: 'PASONG', 'name': 'Pasong' },
+  { code: 'POBLACION', 'name': 'Poblacion' },
+  { code: 'SAN_ANTONIO', 'name': 'San Antonio' },
+  { code: 'SAN_JOSE', 'name': 'San Jose' },
+  { code: 'SAN_RAMON', 'name': 'San Ramon' },
+  { code: 'SAN_ROQUE', 'name': 'San Roque' },
+  { code: 'SOLIDO', 'name': 'Solido' },
+  { code: 'TABONGTABONG', 'name': 'Tabongtabong' },
+  { code: 'TALO-ATO', 'name': 'Talo-ato' },
+  { code: 'TIGBABOY', 'name': 'Tigbaboy' },
+  { code: 'TUNO', 'name': 'Tuno' },
+];

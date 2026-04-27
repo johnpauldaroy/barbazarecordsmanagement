@@ -1,87 +1,151 @@
+import { useEffect, useState } from 'react';
 import SectionHeading from '../components/SectionHeading';
 import StatCard from '../components/StatCard';
-import { exportCards, reportStats, workloadByBarangay } from '../systemData';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { resolveSessionRoleKey } from '../roleAccess';
+import { supabaseService } from '../supabaseService';
 
-function ReportsPage() {
-  const maxPending = Math.max(...workloadByBarangay.map((item) => item.pending));
+function ReportsPage({ session }) {
+  const [stats, setStats] = useState([]);
+  const [workload, setWorkload] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [pageError, setPageError] = useState('');
+  const [activeTab, setActiveTab] = useState('highlights');
+  const roleKey = resolveSessionRoleKey(session);
+  const isBarangayScopedRole = roleKey === 'barangay_secretary' || roleKey === 'barangay_staff';
+  const scopedBarangayName = session?.barangayName || '';
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function initReports() {
+      supabaseService.setSessionContext(session);
+      setLoading(true);
+      setPageError('');
+
+      try {
+        const [summary, chartData] = await Promise.all([
+          supabaseService.getReportsSummary(),
+          supabaseService.getChartData(),
+        ]);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setStats(summary);
+        setWorkload(chartData.workloadByBarangay);
+      } catch (error) {
+        if (isMounted) {
+          setPageError(error.message || 'Failed to load reports.');
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void initReports();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [session]);
+
+  if (loading) {
+    return <div className="workspace-page">Loading reports...</div>;
+  }
+
+  const maxPending = Math.max(...workload.map((item) => item.pending), 1);
 
   return (
     <div className="workspace-page">
-      <section className="panel">
-        <SectionHeading eyebrow="Summary" title="Reporting highlights" />
-        <div className="stats-grid">
-          {reportStats.map((card) => (
-            <StatCard key={card.label} {...card} />
-          ))}
-        </div>
-      </section>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="reports-tabs">
+        <section className="panel settings-tabs-shell reports-tabs-shell">
+          <SectionHeading
+            title="Report center"
+          />
+          <TabsList className="reports-tablist" aria-label="Report sections">
+            <TabsTrigger id="reports-tab-highlights" className="settings-tab reports-tab" value="highlights">
+              <strong>Highlights</strong>
+            </TabsTrigger>
+            <TabsTrigger id="reports-tab-workload" className="settings-tab reports-tab" value="workload">
+              <strong>Workload</strong>
+            </TabsTrigger>
+          </TabsList>
+        </section>
 
-      <section className="page-grid">
-        <article className="panel">
-          <SectionHeading eyebrow="Workload" title="Pending by barangay" />
-          <div className="bar-list">
-            {workloadByBarangay.map((item) => (
-              <div key={item.barangay} className="bar-row">
-                <div className="bar-row__labels">
-                  <strong>{item.barangay}</strong>
-                  <div className="bar-row__actions">
-                    <span>{item.pending} pending</span>
-                    <button
-                      type="button"
-                      className="row-action row-action--ghost row-action--sm"
-                      title={`View ${item.barangay} cases`}
-                      onClick={() => alert(`Viewing ${item.barangay} cases`)}
-                    >
-                      <span className="row-action__icon">→</span>
-                      <span className="row-action__label">View</span>
-                    </button>
+        {pageError ? <div className="auth-alert">{pageError}</div> : null}
+        {isBarangayScopedRole ? (
+          <div className="application-queue-note">
+            <strong>Barangay view</strong>
+            <p>Report outputs are scoped to {scopedBarangayName || 'your assigned barangay'}.</p>
+          </div>
+        ) : null}
+
+        <TabsContent value="highlights" className="mt-0">
+          <section
+            className="panel reports-tabpanel"
+            id="reports-panel-highlights"
+            role="tabpanel"
+            aria-labelledby="reports-tab-highlights"
+          >
+            <SectionHeading eyebrow="Summary" title="Reporting highlights" />
+            <div className="stats-grid">
+              {stats.map((card) => (
+                <StatCard key={card.label} {...card} />
+              ))}
+            </div>
+          </section>
+        </TabsContent>
+
+        <TabsContent value="workload" className="mt-0">
+          <section
+            className="panel reports-tabpanel"
+            id="reports-panel-workload"
+            role="tabpanel"
+            aria-labelledby="reports-tab-workload"
+          >
+            <SectionHeading
+              eyebrow="Workload"
+              title="Pending by barangay"
+              description={
+                isBarangayScopedRole
+                  ? `Queue pressure and current-month approvals for ${scopedBarangayName || 'your assigned barangay'}.`
+                  : 'Queue pressure and current-month approvals across all barangays.'
+              }
+            />
+            {workload.length ? (
+              <div className="bar-list">
+                {workload.map((item) => (
+                  <div key={item.barangay} className="bar-row">
+                    <div className="bar-row__labels">
+                      <strong>{item.barangay}</strong>
+                      <div className="bar-row__actions">
+                        <span>{item.pending} pending</span>
+                      </div>
+                    </div>
+                    <div className="bar-track">
+                      <div
+                        className="bar-fill"
+                        style={{ width: `${(item.pending / maxPending) * 100}%` }}
+                      />
+                    </div>
+                    <small>{item.approved} approved this month</small>
                   </div>
-                </div>
-                <div className="bar-track">
-                  <div
-                    className="bar-fill"
-                    style={{ width: `${(item.pending / maxPending) * 100}%` }}
-                  />
-                </div>
-                <small>{item.approved} approved this month</small>
+                ))}
               </div>
-            ))}
-          </div>
-        </article>
+            ) : (
+              <div className="application-queue-note reports-empty-state">
+                <strong>No barangay workload records found.</strong>
+                <p>New pending and approved case counts will appear here automatically.</p>
+              </div>
+            )}
+          </section>
+        </TabsContent>
 
-        <article className="panel">
-          <SectionHeading eyebrow="Available outputs" title="Common report exports" />
-          <div className="list-stack">
-            {exportCards.map((item) => (
-              <div key={item.title} className="list-row list-row--stacked">
-                <div>
-                  <span className="list-row__eyebrow">{item.metric}</span>
-                  <strong>{item.title}</strong>
-                  <p>{item.note}</p>
-                </div>
-                <div className="report-export-actions">
-                  <button
-                    type="button"
-                    className="row-action row-action--primary row-action--sm"
-                    title="Export as CSV"
-                  >
-                    <span className="row-action__icon">↓</span>
-                    <span className="row-action__label">CSV</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="row-action row-action--ghost row-action--sm"
-                    title="Print report"
-                  >
-                    <span className="row-action__icon">⎙</span>
-                    <span className="row-action__label">Print</span>
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </article>
-      </section>
+      </Tabs>
     </div>
   );
 }

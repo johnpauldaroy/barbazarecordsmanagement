@@ -1,37 +1,61 @@
-:root {
-  color-scheme: light;
-  font-family: 'Segoe UI Variable Text', 'Segoe UI', Bahnschrift, sans-serif;
-  background:
-    radial-gradient(circle at top left, rgba(216, 178, 112, 0.1), transparent 26%),
-    linear-gradient(180deg, #eef2f5 0%, #f7f9fb 100%);
-}
+@import url('https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Source+Serif+4:wght@600;700&display=swap');
 
-* {
-  box-sizing: border-box;
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-html {
-  scroll-behavior: smooth;
-}
+@layer base {
+  :root {
+    color-scheme: light;
+    --background: 210 40% 98%;
+    --foreground: 214 42% 14%;
+    --card: 0 0% 100%;
+    --card-foreground: 214 42% 14%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 214 42% 14%;
+    --primary: 224 76% 48%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 214 32% 95%;
+    --secondary-foreground: 214 38% 22%;
+    --muted: 214 30% 94%;
+    --muted-foreground: 214 20% 44%;
+    --accent: 214 36% 93%;
+    --accent-foreground: 214 38% 22%;
+    --destructive: 0 66% 44%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 214 26% 86%;
+    --input: 214 26% 86%;
+    --ring: 224 76% 48%;
+    --radius: 0.72rem;
+  }
 
-body {
-  margin: 0;
-  min-height: 100vh;
-  background: transparent;
-  color: #132238;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
 
-a {
-  color: inherit;
-}
+  html {
+    scroll-behavior: smooth;
+  }
 
-button,
-input,
-textarea,
-select {
-  font: inherit;
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: 'Public Sans', 'Segoe UI', Tahoma, sans-serif;
+    @apply bg-background text-foreground antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  a {
+    color: inherit;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
 }
 
 #root {

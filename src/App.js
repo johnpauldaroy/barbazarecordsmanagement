@@ -1,9 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import './App.css';
-import { clearStoredSession, getStoredSession } from './auth';
+import './shadcn-professional.css';
+import { LogOut } from 'lucide-react';
+import { clearStoredSession, getStoredSession, subscribeToAuthChanges } from './auth';
 import LoginPage from './pages/LoginPage';
 import { routes, resolveRoute } from './routes';
 import { portalSections } from './systemData';
+import {
+  canAccessPath,
+  getAccessibleSections,
+  getDefaultPathForRole,
+} from './roleAccess';
+import { supabaseService } from './supabaseService';
 
 const sectionIcons = {
   dashboard: (
@@ -52,7 +60,8 @@ function MenuToggleIcon({ collapsed }) {
 }
 
 function App() {
-  const [session, setSession] = useState(() => getStoredSession());
+  const [session, setSession] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
   const [currentPath, setCurrentPath] = useState(() => resolveRoute(window.location.hash));
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const sessionInitials = session?.name
@@ -64,6 +73,49 @@ function App() {
     .toUpperCase();
 
   useEffect(() => {
+    let isMounted = true;
+
+    const loadSession = async () => {
+      try {
+        const storedSession = await getStoredSession();
+
+        if (isMounted) {
+          setSession(storedSession);
+        }
+      } catch {
+        if (isMounted) {
+          setSession(null);
+        }
+      } finally {
+        if (isMounted) {
+          setAuthReady(true);
+        }
+      }
+    };
+
+    loadSession();
+
+    const unsubscribe = subscribeToAuthChanges((nextSession) => {
+      if (isMounted) {
+        setSession(nextSession);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    supabaseService.setSessionContext(session);
+  }, [session]);
+
+  useEffect(() => {
+    if (!authReady) {
+      return undefined;
+    }
+
     const syncRoute = () => {
       setCurrentPath(resolveRoute(window.location.hash));
     };
@@ -79,35 +131,53 @@ function App() {
     return () => {
       window.removeEventListener('hashchange', syncRoute);
     };
-  }, [session]);
+  }, [authReady, session]);
 
   useEffect(() => {
+    if (!authReady) {
+      return;
+    }
+
     if (!session && currentPath !== '/login') {
       window.location.hash = '#/login';
       return;
     }
 
-    if (session && currentPath === '/login') {
-      window.location.hash = '#/dashboard';
+    if (session) {
+      const defaultPath = getDefaultPathForRole(session, portalSections);
+
+      if (currentPath === '/login') {
+        window.location.hash = `#${defaultPath}`;
+        return;
+      }
+
+      if (!canAccessPath(session, currentPath, portalSections)) {
+        window.location.hash = `#${defaultPath}`;
+      }
     }
-  }, [currentPath, session]);
+  }, [authReady, currentPath, session]);
 
   const currentRoute = useMemo(
-    () => routes.find((route) => route.path === currentPath) ?? routes[0],
-    [currentPath]
+    () => {
+      const resolvedPath = session && canAccessPath(session, currentPath, portalSections)
+        ? currentPath
+        : getDefaultPathForRole(session, portalSections);
+      return routes.find((route) => route.path === resolvedPath) ?? routes[0];
+    },
+    [currentPath, session]
   );
-  const currentSection = useMemo(
-    () => portalSections.find((section) => section.path === currentPath),
-    [currentPath]
+  const visibleSections = useMemo(
+    () => getAccessibleSections(session, portalSections),
+    [session]
   );
 
   const handleLogin = (nextSession) => {
     setSession(nextSession);
-    window.location.hash = '#/dashboard';
+    window.location.hash = `#${getDefaultPathForRole(nextSession, portalSections)}`;
   };
 
-  const handleSignOut = () => {
-    clearStoredSession();
+  const handleSignOut = async () => {
+    await clearStoredSession();
     setSession(null);
     window.location.hash = '#/login';
   };
@@ -115,6 +185,19 @@ function App() {
   const toggleSidebar = () => {
     setSidebarCollapsed((current) => !current);
   };
+
+  if (!authReady) {
+    return (
+      <div className="auth-shell">
+        <section className="auth-card" aria-label="Loading session">
+          <div className="auth-form__header">
+            <h2>Loading workspace</h2>
+            <p>Checking your session.</p>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   if (!session) {
     return <LoginPage onLogin={handleLogin} />;
@@ -126,18 +209,45 @@ function App() {
     <div
       className={`portal-shell ${sidebarCollapsed ? 'portal-shell--sidebar-collapsed' : ''}`}
     >
+      <header className="portal-topbar">
+        <a href="#/dashboard" className="portal-topbar__brand" aria-label="MSWD Portal">
+          <img
+            src={`${process.env.PUBLIC_URL}/barbaza-seal.png`}
+            alt=""
+            className="portal-topbar__seal"
+          />
+          <span>
+            <strong>MSWD PORTAL</strong>
+            <small>Barbaza Records Management System</small>
+          </span>
+        </a>
+
+        <div className="topbar-actions" aria-label="Workspace actions">
+          <div className="topbar-session">
+            <div className="topbar-user">
+              <span className="topbar-user__avatar" aria-hidden="true">
+                {sessionInitials}
+              </span>
+              <div className="topbar-user__details">
+                <strong>{session.name}</strong>
+                <small>{session.role}</small>
+              </div>
+            </div>
+            <button type="button" className="topbar-signout" onClick={handleSignOut}>
+              <LogOut aria-hidden="true" />
+              <span>Sign out</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
       <aside className={`portal-sidebar ${sidebarCollapsed ? 'portal-sidebar--collapsed' : ''}`}>
         <div className="portal-sidebar__header">
-          <a href="#/dashboard" className="portal-brand">
-            <img
-              src={`${process.env.PUBLIC_URL}/barbaza-seal.png`}
-              alt=""
-              className="portal-brand__logo"
-            />
+          <div className="portal-brand" aria-hidden="true">
             <span className="portal-brand__text">
-              <strong>MSWD Portal</strong>
+              <strong>MSWD PORTAL</strong>
             </span>
-          </a>
+          </div>
 
           <button
             type="button"
@@ -151,58 +261,32 @@ function App() {
         </div>
 
         <nav className="portal-nav" aria-label="Portal sections">
-          {portalSections.map((section) => (
-            <a
-              key={section.path}
-              href={`#${section.path}`}
-              className={`portal-nav__link ${
-                section.path === currentPath ? 'portal-nav__link--active' : ''
-              }`}
-              aria-current={section.path === currentPath ? 'page' : undefined}
-              title={section.label}
-            >
-              <NavIcon icon={sectionIcons[section.id]} />
-              <span className="portal-nav__content">
-                <span className="portal-nav__label">{section.label}</span>
-              </span>
-            </a>
-          ))}
+          {visibleSections
+            .map((section) => (
+              <a
+                key={section.path}
+                href={`#${section.path}`}
+                className={`portal-nav__link ${
+                  section.path === currentPath ? 'portal-nav__link--active' : ''
+                }`}
+                aria-current={section.path === currentPath ? 'page' : undefined}
+                title={section.label}
+              >
+                <NavIcon icon={sectionIcons[section.id]} />
+                <span className="portal-nav__content">
+                  <span className="portal-nav__label">{section.label}</span>
+                </span>
+              </a>
+            ))}
         </nav>
       </aside>
 
       <main className="portal-main">
-        <header className="portal-topbar">
-          <div className="portal-topbar__heading">
-            <span className="section-eyebrow">MSWD operations workspace</span>
-            <h2>{currentRoute.label}</h2>
-            <p>{currentSection?.summary}</p>
+        <div className="portal-page-header">
+          <div>
+            <h1>{currentRoute.label}</h1>
           </div>
-
-          <div className="topbar-actions">
-            <div className="topbar-search" role="search">
-              <input
-                type="text"
-                placeholder="Search reference, applicant, or household"
-                readOnly
-                aria-label="Search records"
-              />
-            </div>
-            <div className="topbar-session">
-              <div className="topbar-user">
-                <span className="topbar-user__avatar" aria-hidden="true">
-                  {sessionInitials}
-                </span>
-                <div className="topbar-user__details">
-                  <strong>{session.name}</strong>
-                  <small>{session.role}</small>
-                </div>
-              </div>
-              <button type="button" className="topbar-signout" onClick={handleSignOut}>
-                Sign out
-              </button>
-            </div>
-          </div>
-        </header>
+        </div>
 
         <CurrentPage session={session} />
       </main>

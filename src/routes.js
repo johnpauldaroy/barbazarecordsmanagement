@@ -12,7 +12,19 @@ export const routes = [
   { path: '/settings', label: 'Settings', component: SettingsPage },
 ];
 
+export function getHashPath(hash = '') {
+  const normalized = String(hash ?? '').replace(/^#/, '') || '/dashboard';
+  const [pathOnly] = normalized.split('?');
+  return pathOnly || '/dashboard';
+}
+
+export function getHashQueryParams(hash = '') {
+  const normalized = String(hash ?? '').replace(/^#/, '');
+  const [, queryString = ''] = normalized.split('?');
+  return new URLSearchParams(queryString);
+}
+
 export function resolveRoute(hash) {
-  const path = hash.replace(/^#/, '') || '/dashboard';
+  const path = getHashPath(hash);
   return routes.some((route) => route.path === path) || path === '/login' ? path : '/dashboard';
 }

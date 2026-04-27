@@ -1,5 +1,7 @@
+import { Badge } from './ui/badge';
+
 function StatusPill({ status, tone }) {
-  return <mark className={`status-pill status-pill--${tone}`}>{status}</mark>;
+  return <Badge className={`status-pill status-pill--${tone}`} variant="outline">{status}</Badge>;
 }
 
 export default StatusPill;

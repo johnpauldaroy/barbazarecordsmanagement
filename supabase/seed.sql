@@ -1,9 +1,44 @@
 insert into public.barangays (code, name, district)
 values
+  ('BAGHARI', 'Baghari', 'Central'),
+  ('BAHUYAN', 'Bahuyan', 'Central'),
+  ('BERI', 'Beri', 'Central'),
+  ('BIGA-A', 'Biga-a', 'Central'),
+  ('BINANGBANG', 'Binangbang', 'Central'),
+  ('BINONGAAN', 'Binongaan', 'Central'),
+  ('CADIAO', 'Cadiao', 'Central'),
+  ('CAPOYUAN', 'Capoyuan', 'Central'),
+  ('ESPARAR', 'Esparar', 'Central'),
+  ('GUA', 'Gua', 'Central'),
+  ('IDAO', 'Idao', 'Central'),
+  ('IGPALGE', 'Igpalge', 'Central'),
+  ('IGTUNARUM', 'Igtunarum', 'Central'),
+  ('JINALINAN', 'Jinalinan', 'Central'),
+  ('LANAS', 'Lanas', 'Central'),
+  ('MABLAD', 'Mablad', 'Central'),
+  ('MAGTULIS', 'Magtulis', 'Central'),
+  ('MARARI', 'Marari', 'Central'),
+  ('MAYABAY', 'Mayabay', 'Central'),
+  ('MAYHA', 'Mayha', 'Central'),
+  ('NALOOK', 'Nalook', 'Central'),
+  ('NARIRONG', 'Narirong', 'Central'),
+  ('PALMIRA', 'Palmira', 'Central'),
+  ('PANGPANG', 'Pangpang', 'Central'),
+  ('PASONG', 'Pasong', 'Central'),
   ('POBLACION', 'Poblacion', 'Central'),
-  ('MAYHA', 'Mayha', 'North'),
-  ('BADIANGAN', 'Badiangan', 'East'),
-  ('TOROCADAN', 'Torocadan', 'South')
+  ('SAN_ANTONIO', 'San Antonio', 'Central'),
+  ('SAN_ROQUE', 'San Roque', 'Central'),
+  ('TABONGTABONG', 'Tabongtabong', 'Central'),
+  ('TALO-ATO', 'Talo-ato', 'Central'),
+  ('TIGBABOY', 'Tigbaboy', 'Central'),
+  ('TUNO', 'Tuno', 'Central'),
+  ('IPIL', 'Ipil', 'Central'),
+  ('LANGCAON', 'Langcaon', 'Central'),
+  ('LISUB', 'Lisub', 'Central'),
+  ('MARADIONA', 'Maradiona', 'Central'),
+  ('SAN_RAMON', 'San Ramon', 'Central'),
+  ('SOLIDO', 'Solido', 'Central'),
+  ('SAN_JOSE', 'San Jose', 'Central')
 on conflict (code) do update
 set
   name = excluded.name,
@@ -217,4 +252,136 @@ set
   value = excluded.value,
   description = excluded.description,
   is_public = excluded.is_public,
+  updated_at = now();
+
+/**
+ * DEMO USERS SEEDING
+ * These accounts match the demo users in systemData.js for local/development testing.
+ * Password for all accounts: mswd-demo-2026
+ */
+
+-- 1. Insert into auth.users (Supabase Auth)
+insert into auth.users (
+  id,
+  instance_id,
+  aud,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  recovery_sent_at,
+  last_sign_in_at,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at,
+  confirmation_token,
+  email_change,
+  email_change_token_new,
+  recovery_token
+)
+values
+  (
+    '00000000-0000-0000-0000-000000000001',
+    '00000000-0000-0000-0000-000000000000',
+    'authenticated',
+    'authenticated',
+    'juan.cruz@barbaza.gov.ph',
+    crypt('mswd-demo-2026', gen_salt('bf')),
+    now(),
+    now(),
+    now(),
+    '{"provider":"email","providers":["email"],"role":"super_admin"}',
+    '{"full_name":"Juan D. Cruz","role":"super_admin"}',
+    now(),
+    now(),
+    '',
+    '',
+    '',
+    ''
+  ),
+  (
+    '00000000-0000-0000-0000-000000000002',
+    '00000000-0000-0000-0000-000000000000',
+    'authenticated',
+    'authenticated',
+    'ana.ramos@barbaza.gov.ph',
+    crypt('mswd-demo-2026', gen_salt('bf')),
+    now(),
+    now(),
+    now(),
+    '{"provider":"email","providers":["email"],"role":"mswdo_staff"}',
+    '{"full_name":"Ana B. Ramos","role":"mswdo_staff"}',
+    now(),
+    now(),
+    '',
+    '',
+    '',
+    ''
+  ),
+  (
+    '00000000-0000-0000-0000-000000000003',
+    '00000000-0000-0000-0000-000000000000',
+    'authenticated',
+    'authenticated',
+    'maria.santos@barbaza.gov.ph',
+    crypt('mswd-demo-2026', gen_salt('bf')),
+    now(),
+    now(),
+    now(),
+    '{"provider":"email","providers":["email"],"role":"barangay_secretary"}',
+    '{"full_name":"Maria L. Santos","role":"barangay_secretary"}',
+    now(),
+    now(),
+    '',
+    '',
+    '',
+    ''
+  )
+on conflict (id) do update
+set
+  raw_app_meta_data = excluded.raw_app_meta_data,
+  raw_user_meta_data = excluded.raw_user_meta_data,
+  updated_at = now();
+
+-- 2. Insert into public.profiles
+insert into public.profiles (
+  id,
+  email,
+  display_name,
+  first_name,
+  last_name,
+  is_active
+)
+values
+  ('00000000-0000-0000-0000-000000000001', 'juan.cruz@barbaza.gov.ph', 'Juan D. Cruz', 'Juan', 'Cruz', true),
+  ('00000000-0000-0000-0000-000000000002', 'ana.ramos@barbaza.gov.ph', 'Ana B. Ramos', 'Ana', 'Ramos', true),
+  ('00000000-0000-0000-0000-000000000003', 'maria.santos@barbaza.gov.ph', 'Maria L. Santos', 'Maria', 'Santos', true)
+on conflict (id) do update
+set
+  display_name = excluded.display_name,
+  is_active = excluded.is_active,
+  updated_at = now();
+
+-- 3. Assign Roles in public.user_roles
+insert into public.user_roles (id, user_id, role_id, is_primary)
+select
+  seed.id,
+  seed.user_id,
+  r.id,
+  true
+from (
+  values
+    ('00000000-0000-0000-0000-100000000001'::uuid, '00000000-0000-0000-0000-000000000001'::uuid, 'super_admin'),
+    ('00000000-0000-0000-0000-100000000002'::uuid, '00000000-0000-0000-0000-000000000002'::uuid, 'mswdo_staff'),
+    ('00000000-0000-0000-0000-100000000003'::uuid, '00000000-0000-0000-0000-000000000003'::uuid, 'barangay_secretary')
+) as seed(id, user_id, role_key)
+join public.roles r on r.key = seed.role_key
+on conflict (id) do update
+set
+  role_id = excluded.role_id,
+  barangay_id = excluded.barangay_id,
+  is_primary = excluded.is_primary,
+  is_active = true,
+  effective_to = null,
   updated_at = now();
