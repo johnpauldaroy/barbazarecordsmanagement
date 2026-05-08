@@ -4,16 +4,38 @@ import SectionHeading from '../components/SectionHeading';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
+import { classifyIncome } from '../incomeClassification';
 import {
   canManageHouseholds as canManageHouseholdsByRole,
   resolveSessionRoleKey,
 } from '../roleAccess';
 import { supabaseService } from '../supabaseService';
 
+function IncomeBadge({ monthlyIncome }) {
+  const tier = classifyIncome(monthlyIncome);
+  return (
+    <span
+      className="income-badge"
+      style={{ background: tier.bgColor, color: tier.textColor, borderColor: tier.color }}
+      title={tier.range}
+    >
+      {tier.tupadPriority ? 'Recommended to TUPAD - ' : ''}{tier.label}
+    </span>
+  );
+}
+
+function getIncomeClassificationLabel(monthlyIncome) {
+  const tier = classifyIncome(monthlyIncome);
+  if (tier.tupadPriority) {
+    return `${tier.label} - Recommended for TUPAD`;
+  }
+  return tier.label;
+}
+
+// Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ helpers Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬
+
 function normalizeBarangayToken(value) {
-  return String(value ?? '')
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, '');
+  return String(value ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
 
 function extractHouseholdPrefix(code) {
@@ -28,101 +50,264 @@ function extractHouseholdSequence(code) {
 
 function getExistingBarangayPrefix(records, barangayName) {
   const counts = records.reduce((map, record) => {
-    if (record.barangay !== barangayName) {
-      return map;
-    }
-
+    if (record.barangay !== barangayName) return map;
     const prefix = extractHouseholdPrefix(record.code);
-    if (!prefix) {
-      return map;
-    }
-
+    if (!prefix) return map;
     map.set(prefix, (map.get(prefix) ?? 0) + 1);
     return map;
   }, new Map());
-
-  return [...counts.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] ?? '';
+  return [...counts.entries()].sort((l, r) => r[1] - l[1])[0]?.[0] ?? '';
 }
 
 function getBarangayPrefix(barangayName, barangays, records) {
-  if (!barangayName) {
-    return '';
-  }
-
+  if (!barangayName) return '';
   const existingPrefix = getExistingBarangayPrefix(records, barangayName);
-  if (existingPrefix) {
-    return existingPrefix;
-  }
-
+  if (existingPrefix) return existingPrefix;
   const selectedBarangay = barangays.find((item) => item.name === barangayName);
   const token = normalizeBarangayToken(selectedBarangay?.code || selectedBarangay?.name || barangayName);
-  if (!token) {
-    return 'BAR';
-  }
-
-  const barangayTokens = barangays
-    .map((item) => normalizeBarangayToken(item.code || item.name))
-    .filter(Boolean);
-
+  if (!token) return 'BAR';
+  const barangayTokens = barangays.map((item) => normalizeBarangayToken(item.code || item.name)).filter(Boolean);
   const minimumLength = Math.min(3, token.length);
   for (let length = minimumLength; length <= token.length; length += 1) {
     const candidate = token.slice(0, length);
-    const matches = barangayTokens.filter((barangayToken) => barangayToken.startsWith(candidate)).length;
-    if (matches <= 1) {
-      return candidate;
-    }
+    const matches = barangayTokens.filter((t) => t.startsWith(candidate)).length;
+    if (matches <= 1) return candidate;
   }
-
   return token;
 }
 
 function nextHouseholdCode(records, barangayName, barangays) {
-  if (!barangayName) {
-    return '';
-  }
-
+  if (!barangayName) return '';
   const prefix = getBarangayPrefix(barangayName, barangays, records);
   const latest = records
-    .filter((record) => record.barangay === barangayName)
-    .map((record) => extractHouseholdSequence(record.code))
-    .filter((value) => Number.isFinite(value))
-    .sort((left, right) => right - left)[0] ?? 0;
-
+    .filter((r) => r.barangay === barangayName)
+    .map((r) => extractHouseholdSequence(r.code))
+    .filter((v) => Number.isFinite(v))
+    .sort((l, r) => r - l)[0] ?? 0;
   return `HH-${prefix}-${String(latest + 1).padStart(4, '0')}`;
 }
 
-function HouseholdActions({ item, onViewProfile, onEdit, onDelete }) {
+function computeAge(dateOfBirth) {
+  if (!dateOfBirth) return '';
+  const birth = new Date(dateOfBirth);
+  if (Number.isNaN(birth.getTime())) return '';
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age -= 1;
+  }
+  return age >= 0 ? String(age) : '';
+}
+
+function isCurrentlyStudyingFromValue(value) {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (!normalized) return false;
+  return normalized !== 'not currently studying';
+}
+
+function formatHeadName(form) {
+  return [form.headFirstName, form.headMiddleName, form.headLastName, form.headSuffix]
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join(' ');
+}
+
+function formatMemberName(member) {
+  return [member.firstName, member.middleName, member.lastName, member.suffix]
+    .map((s) => String(s ?? '').trim())
+    .filter(Boolean)
+    .join(' ') || '-';
+}
+
+function newMember() {
+  return {
+    _id: `${Date.now()}-${Math.random()}`,
+    lastName: '',
+    firstName: '',
+    middleName: '',
+    suffix: '',
+    relationship: '',
+    dateOfBirth: '',
+    gender: '',
+    civilStatus: '',
+    religion: '',
+    contactNumber: '',
+    currentlyStudying: false,
+    schoolBackground: '',
+    occupation: '',
+    monthlyIncome: '',
+  };
+}
+
+const SUFFIX_OPTIONS = ['', 'Jr.', 'Sr.', 'II', 'III', 'IV', 'V'];
+const GENDER_OPTIONS = ['', 'Male', 'Female', 'Prefer not to say'];
+const CIVIL_STATUS_OPTIONS = ['', 'Single', 'Married', 'Widowed', 'Separated', 'Annulled'];
+const RELATIONSHIP_OPTIONS = [
+  '',
+  'Spouse',
+  'Son',
+  'Daughter',
+  'Father',
+  'Mother',
+  'Brother',
+  'Sister',
+  'Grandfather',
+  'Grandmother',
+  'Grandchild',
+  'Uncle',
+  'Aunt',
+  'Nephew',
+  'Niece',
+  'Cousin',
+  'Son-in-law',
+  'Daughter-in-law',
+  'Other relative',
+  'Non-relative',
+];
+const RELIGION_OPTIONS = [
+  '',
+  'Roman Catholic',
+  'Iglesia ni Cristo',
+  'Islam',
+  'Born Again Christian',
+  'Seventh-day Adventist',
+  'Aglipayan',
+  'Baptist',
+  'Jehovah\'s Witnesses',
+  'Methodist',
+  'Pentecostal',
+  'Protestant',
+  'Other',
+];
+
+const EMPTY_FORM = {
+  code: '',
+  barangay: '',
+  purokSitio: '',
+  addressLine1: '',
+  headLastName: '',
+  headFirstName: '',
+  headMiddleName: '',
+  headSuffix: '',
+  headDateOfBirth: '',
+  headGender: '',
+  headCivilStatus: '',
+  headReligion: '',
+  headContactNumber: '',
+  headCurrentlyStudying: false,
+  headSchoolBackground: '',
+  headOccupation: '',
+  headMonthlyIncome: '',
+  familyMembers: [],
+  isLumon: false,
+  lumonFamilyCount: '1',
+  lumonDescription: '',
+};
+
+// Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ sub-components Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬
+
+function FieldRow({ label, htmlFor, children, wide }) {
   return (
-    <div className="row-actions" onClick={(event) => event.stopPropagation()}>
-      <Button
-        type="button"
-        size="sm"
-        title={`View profile for ${item.code}`}
-        onClick={onViewProfile}
-      >
-        View profile
-      </Button>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        title={`Edit ${item.code}`}
-        onClick={onEdit}
-      >
-        Edit
-      </Button>
-      <Button
-        type="button"
-        variant="destructive"
-        size="sm"
-        title={`Delete ${item.code}`}
-        onClick={onDelete}
-      >
-        Delete
-      </Button>
+    <label className={`settings-field${wide ? ' household-form-grid__wide' : ''}`} htmlFor={htmlFor}>
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function SelectField({ id, name, value, onChange, options, disabled, placeholder }) {
+  return (
+    <select id={id} name={name} value={value} onChange={onChange} disabled={disabled}>
+      {placeholder !== false && <option value="">{placeholder || 'Select...'}</option>}
+      {options.filter(Boolean).map((opt) => (
+        <option key={opt} value={opt}>{opt}</option>
+      ))}
+    </select>
+  );
+}
+
+function MemberRow({ member, onEdit, onRemove }) {
+  const age = computeAge(member.dateOfBirth);
+  return (
+    <div className="hh-member-row">
+      <div className="hh-member-row__info">
+        <strong>{formatMemberName(member)}</strong>
+        <span>{member.relationship || 'Member'}{age ? ` · ${age} yrs` : ''}{member.gender ? ` · ${member.gender}` : ''}</span>
+      </div>
+      <div className="hh-member-row__actions">
+        <Button type="button" variant="outline" size="sm" onClick={onEdit}>Edit</Button>
+        <Button type="button" variant="destructive" size="sm" onClick={onRemove}>Remove</Button>
+      </div>
     </div>
   );
 }
+
+function MemberForm({ member, onChange, onSave, onCancel }) {
+  const age = computeAge(member.dateOfBirth);
+
+  function field(name) {
+    return {
+      name,
+      value: member[name] ?? '',
+      onChange: (e) => onChange(name, e.target.value),
+    };
+  }
+
+  return (
+    <div className="hh-member-form">
+      <div className="hh-member-form__grid">
+        <FieldRow label="Last name" htmlFor="mf-last"><Input id="mf-last" {...field('lastName')} required /></FieldRow>
+        <FieldRow label="First name" htmlFor="mf-first"><Input id="mf-first" {...field('firstName')} required /></FieldRow>
+        <FieldRow label="Middle name" htmlFor="mf-mid"><Input id="mf-mid" {...field('middleName')} /></FieldRow>
+        <FieldRow label="Suffix" htmlFor="mf-suffix">
+          <SelectField id="mf-suffix" {...field('suffix')} options={SUFFIX_OPTIONS} />
+        </FieldRow>
+        <FieldRow label="Relationship to head" htmlFor="mf-rel">
+          <SelectField id="mf-rel" {...field('relationship')} options={RELATIONSHIP_OPTIONS} />
+        </FieldRow>
+        <FieldRow label="Date of birth" htmlFor="mf-dob">
+          <Input id="mf-dob" type="date" {...field('dateOfBirth')} />
+        </FieldRow>
+        <FieldRow label="Age (computed)" htmlFor="mf-age">
+          <Input id="mf-age" value={age} readOnly placeholder="-" tabIndex={-1} />
+        </FieldRow>
+        <FieldRow label="Gender" htmlFor="mf-gender">
+          <SelectField id="mf-gender" {...field('gender')} options={GENDER_OPTIONS} />
+        </FieldRow>
+        <FieldRow label="Civil status" htmlFor="mf-civil">
+          <SelectField id="mf-civil" {...field('civilStatus')} options={CIVIL_STATUS_OPTIONS} />
+        </FieldRow>
+        <FieldRow label="Religion" htmlFor="mf-rel2">
+          <SelectField id="mf-rel2" {...field('religion')} options={RELIGION_OPTIONS} />
+        </FieldRow>
+        <FieldRow label="Contact number" htmlFor="mf-contact"><Input id="mf-contact" type="tel" {...field('contactNumber')} /></FieldRow>
+        <FieldRow label="Occupation" htmlFor="mf-occ"><Input id="mf-occ" {...field('occupation')} /></FieldRow>
+        <FieldRow label="Monthly income (PHP)" htmlFor="mf-income"><Input id="mf-income" type="number" min="0" {...field('monthlyIncome')} /></FieldRow>
+        <label className="hh-checkbox-field household-form-grid__wide" htmlFor="mf-currently-studying">
+          <input
+            id="mf-currently-studying"
+            type="checkbox"
+            checked={Boolean(member.currentlyStudying)}
+            onChange={(event) => onChange('currentlyStudying', event.target.checked)}
+          />
+          <span>Currently studying?</span>
+        </label>
+        {member.currentlyStudying ? (
+          <FieldRow label="School name" htmlFor="mf-school" wide>
+            <Input id="mf-school" {...field('schoolBackground')} placeholder="Enter school name" />
+          </FieldRow>
+        ) : null}
+      </div>
+      <div className="hh-member-form__actions">
+        <Button type="button" variant="outline" size="sm" onClick={onCancel}>Cancel</Button>
+        <Button type="button" size="sm" onClick={onSave}>Save member</Button>
+      </div>
+    </div>
+  );
+}
+
+// Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ HouseholdFormModal Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬
 
 function HouseholdFormModal({
   mode,
@@ -133,112 +318,243 @@ function HouseholdFormModal({
   errorMessage,
   isSubmitting,
   onChange,
+  onMemberChange,
+  onAddMember,
+  onSaveMember,
+  onCancelMember,
+  onRemoveMember,
+  onEditMember,
+  editingMemberIndex,
+  draftMember,
+  onDraftMemberChange,
   onClose,
   onSubmit,
 }) {
   const isEdit = mode === 'edit';
+  const age = computeAge(formState.headDateOfBirth);
+  const totalMembers = 1 + formState.familyMembers.length;
 
   return (
-    <Dialog open onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
-      <DialogContent className="records-modal__panel records-modal__panel--compact max-w-3xl">
+    <Dialog open onOpenChange={(next) => { if (!next) onClose(); }}>
+      <DialogContent className="records-modal__panel max-w-4xl household-form-dialog">
         <DialogHeader className="records-modal__header">
           <div>
             <span className="section-eyebrow">Registry</span>
             <DialogTitle>{isEdit ? 'Edit household' : 'Add household'}</DialogTitle>
           </div>
           <DialogDescription className="sr-only">
-            Update household profile and registry details.
+            {isEdit ? 'Update household profile and registry details.' : 'Register a new household.'}
           </DialogDescription>
         </DialogHeader>
 
-        <form className="household-form-grid gap-4" onSubmit={onSubmit}>
-          <label className="settings-field" htmlFor="household-code">
-            <span>Household code</span>
-            <Input
-              id="household-code"
-              name="code"
-              value={formState.code}
-              onChange={onChange}
-              placeholder="HH-BAR-0001"
-              required
-              disabled={isEdit}
-            />
-          </label>
+        <form className="household-form-scroll" onSubmit={onSubmit}>
 
-          <label className="settings-field" htmlFor="household-head">
-            <span>Head of family</span>
-            <Input
-              id="household-head"
-              name="head"
-              value={formState.head}
-              onChange={onChange}
-              placeholder="Enter full name"
-              required
-            />
-          </label>
+          {/* Ã¢"â‚¬Ã¢"â‚¬ Section 1: Household details Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ */}
+          <div className="household-form-section">
+            <p className="household-form-section__label">Household details</p>
+            <div className="household-form-grid gap-4">
+              <FieldRow label="Household code" htmlFor="hh-code">
+                <Input
+                  id="hh-code"
+                  name="code"
+                  value={formState.code}
+                  onChange={onChange}
+                  placeholder="HH-BAR-0001"
+                  required
+                  disabled={isEdit}
+                />
+              </FieldRow>
+              <FieldRow label="Barangay" htmlFor="hh-barangay">
+                <select
+                  id="hh-barangay"
+                  name="barangay"
+                  value={formState.barangay}
+                  onChange={onChange}
+                  required
+                  disabled={isBarangayLocked}
+                >
+                  <option value="" disabled>Select barangay</option>
+                  {barangays.map((b) => (
+                    <option key={b.code} value={b.name}>{b.name}</option>
+                  ))}
+                </select>
+                {isBarangayLocked ? <small>Locked to {scopedBarangayName || 'your assigned barangay'}.</small> : null}
+              </FieldRow>
+              <FieldRow label="Purok / Sitio" htmlFor="hh-purok">
+                <Input id="hh-purok" name="purokSitio" value={formState.purokSitio} onChange={onChange} placeholder="Purok 3" />
+              </FieldRow>
+              <FieldRow label="Address" htmlFor="hh-address" wide>
+                <Input id="hh-address" name="addressLine1" value={formState.addressLine1} onChange={onChange} placeholder="Street / area description" required />
+              </FieldRow>
+            </div>
+          </div>
 
-          <label className="settings-field" htmlFor="household-barangay">
-            <span>Barangay</span>
-            <select
-              id="household-barangay"
-              name="barangay"
-              value={formState.barangay}
-              onChange={onChange}
-              required
-              disabled={isBarangayLocked}
-            >
-              <option value="" disabled>Select barangay</option>
-              {barangays.map((b) => (
-                <option key={b.code} value={b.name}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-            {isBarangayLocked ? <small>Locked to {scopedBarangayName || 'your assigned barangay'}.</small> : null}
-          </label>
+          {/* Ã¢"â‚¬Ã¢"â‚¬ Section 2: Head of household Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ */}
+          <div className="household-form-section">
+            <p className="household-form-section__label">Head of household</p>
+            <div className="household-form-grid gap-4">
+              <FieldRow label="Last name" htmlFor="hh-hlast">
+                <Input id="hh-hlast" name="headLastName" value={formState.headLastName} onChange={onChange} required />
+              </FieldRow>
+              <FieldRow label="First name" htmlFor="hh-hfirst">
+                <Input id="hh-hfirst" name="headFirstName" value={formState.headFirstName} onChange={onChange} required />
+              </FieldRow>
+              <FieldRow label="Middle name" htmlFor="hh-hmid">
+                <Input id="hh-hmid" name="headMiddleName" value={formState.headMiddleName} onChange={onChange} />
+              </FieldRow>
+              <FieldRow label="Suffix" htmlFor="hh-hsuffix">
+                <SelectField id="hh-hsuffix" name="headSuffix" value={formState.headSuffix} onChange={onChange} options={SUFFIX_OPTIONS} />
+              </FieldRow>
+              <FieldRow label="Date of birth" htmlFor="hh-hdob">
+                <Input id="hh-hdob" name="headDateOfBirth" type="date" value={formState.headDateOfBirth} onChange={onChange} />
+              </FieldRow>
+              <FieldRow label="Age (computed)" htmlFor="hh-hage">
+                <Input id="hh-hage" value={age} readOnly placeholder="-" tabIndex={-1} />
+              </FieldRow>
+              <FieldRow label="Gender" htmlFor="hh-hgender">
+                <SelectField id="hh-hgender" name="headGender" value={formState.headGender} onChange={onChange} options={GENDER_OPTIONS} />
+              </FieldRow>
+              <FieldRow label="Civil status" htmlFor="hh-hcivil">
+                <SelectField id="hh-hcivil" name="headCivilStatus" value={formState.headCivilStatus} onChange={onChange} options={CIVIL_STATUS_OPTIONS} />
+              </FieldRow>
+              <FieldRow label="Religion" htmlFor="hh-hreligion">
+                <SelectField
+                  id="hh-hreligion"
+                  name="headReligion"
+                  value={formState.headReligion}
+                  onChange={onChange}
+                  options={RELIGION_OPTIONS}
+                />
+              </FieldRow>
+              <FieldRow label="Contact number" htmlFor="hh-hcontact">
+                <Input id="hh-hcontact" name="headContactNumber" type="tel" value={formState.headContactNumber} onChange={onChange} placeholder="09XX-XXX-XXXX" />
+              </FieldRow>
+              <FieldRow label="Occupation" htmlFor="hh-hocc">
+                <Input id="hh-hocc" name="headOccupation" value={formState.headOccupation} onChange={onChange} />
+              </FieldRow>
+              <FieldRow label="Monthly income (PHP)" htmlFor="hh-hincome">
+                <Input id="hh-hincome" name="headMonthlyIncome" type="number" min="0" value={formState.headMonthlyIncome} onChange={onChange} />
+                {formState.headMonthlyIncome !== '' && (
+                  <IncomeBadge monthlyIncome={formState.headMonthlyIncome} />
+                )}
+              </FieldRow>
+              <label className="hh-checkbox-field household-form-grid__wide" htmlFor="hh-hcurrently-studying">
+                <input
+                  id="hh-hcurrently-studying"
+                  type="checkbox"
+                  name="headCurrentlyStudying"
+                  checked={Boolean(formState.headCurrentlyStudying)}
+                  onChange={onChange}
+                />
+                <span>Currently studying?</span>
+              </label>
+              {formState.headCurrentlyStudying ? (
+                <FieldRow label="School name" htmlFor="hh-hschool" wide>
+                  <Input
+                    id="hh-hschool"
+                    name="headSchoolBackground"
+                    value={formState.headSchoolBackground}
+                    onChange={onChange}
+                    placeholder="Enter school name"
+                  />
+                </FieldRow>
+              ) : null}
+            </div>
+          </div>
 
-          <label className="settings-field" htmlFor="household-members">
-            <span>Members</span>
-            <Input
-              id="household-members"
-              name="members"
-              type="number"
-              min="1"
-              value={formState.members}
-              onChange={onChange}
-              required
-            />
-          </label>
+          {/* Ã¢"â‚¬Ã¢"â‚¬ Section 3: Family members Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ */}
+          <div className="household-form-section">
+            <div className="household-form-section__header">
+              <p className="household-form-section__label">
+                Family members
+                <span className="household-form-section__count">{totalMembers} total (including head)</span>
+              </p>
+            </div>
 
-          <label className="settings-field" htmlFor="household-purok">
-            <span>Purok / Sitio</span>
-            <Input
-              id="household-purok"
-              name="purokSitio"
-              value={formState.purokSitio}
-              onChange={onChange}
-              placeholder="Purok 3"
-            />
-          </label>
+            {formState.familyMembers.length > 0 && (
+              <div className="hh-members-list">
+                {formState.familyMembers.map((member, index) => (
+                  editingMemberIndex === index ? (
+                    <MemberForm
+                      key={member._id}
+                      member={draftMember}
+                      onChange={onDraftMemberChange}
+                      onSave={() => onSaveMember(index)}
+                      onCancel={onCancelMember}
+                    />
+                  ) : (
+                    <MemberRow
+                      key={member._id}
+                      member={member}
+                      onEdit={() => onEditMember(index)}
+                      onRemove={() => onRemoveMember(index)}
+                    />
+                  )
+                ))}
+              </div>
+            )}
 
-          <label className="settings-field household-form-grid__wide" htmlFor="household-address">
-            <span>Address</span>
-            <Input
-              id="household-address"
-              name="addressLine1"
-              value={formState.addressLine1}
-              onChange={onChange}
-              placeholder="Street / area description"
-              required
-            />
-          </label>
+            {editingMemberIndex === -1 && draftMember ? (
+              <MemberForm
+                member={draftMember}
+                onChange={onDraftMemberChange}
+                onSave={() => onSaveMember(-1)}
+                onCancel={onCancelMember}
+              />
+            ) : (
+              editingMemberIndex === null && (
+                <Button type="button" variant="outline" size="sm" onClick={onAddMember} className="mt-2">
+                  + Add family member
+                </Button>
+              )
+            )}
+          </div>
+
+          {/* Ã¢"â‚¬Ã¢"â‚¬ Section 4: Lumon indicator Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ */}
+          <div className="household-form-section">
+            <p className="household-form-section__label">Lumon / shared household</p>
+            <div className="household-form-grid gap-4">
+              <label className="hh-checkbox-field" htmlFor="hh-lumon">
+                <input
+                  id="hh-lumon"
+                  type="checkbox"
+                  name="isLumon"
+                  checked={formState.isLumon}
+                  onChange={onChange}
+                />
+                <span>Multiple families share this household (lumon)</span>
+              </label>
+              {formState.isLumon && (
+                <>
+                  <FieldRow label="Number of families" htmlFor="hh-lumon-count">
+                    <Input
+                      id="hh-lumon-count"
+                      name="lumonFamilyCount"
+                      type="number"
+                      min="2"
+                      max="10"
+                      value={formState.lumonFamilyCount}
+                      onChange={onChange}
+                    />
+                  </FieldRow>
+                  <FieldRow label="Family identifiers / description" htmlFor="hh-lumon-desc" wide>
+                    <Input
+                      id="hh-lumon-desc"
+                      name="lumonDescription"
+                      value={formState.lumonDescription}
+                      onChange={onChange}
+                      placeholder="e.g. Serrano family, Cruz family, Dela Paz family"
+                    />
+                  </FieldRow>
+                </>
+              )}
+            </div>
+          </div>
 
           {errorMessage ? <div className="auth-alert">{errorMessage}</div> : null}
 
           <div className="household-form-actions">
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? 'Saving...' : isEdit ? 'Save changes' : 'Save household'}
             </Button>
@@ -249,33 +565,128 @@ function HouseholdFormModal({
   );
 }
 
-function HouseholdProfileModal({ household, details, onClose }) {
+// Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ HouseholdProfileModal Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬
+
+function ProfileField({ label, value }) {
+  if (!value) return null;
   return (
-    <Dialog open onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
+    <div className="hh-profile-field">
+      <span className="hh-profile-field__label">{label}</span>
+      <strong className="hh-profile-field__value">{value}</strong>
+    </div>
+  );
+}
+
+function HouseholdProfileModal({ household, details, onClose }) {
+  const h = household;
+  const age = computeAge(h.headDateOfBirth);
+  const headFullName = h.headFirstName
+    ? [h.headFirstName, h.headMiddleName, h.headLastName, h.headSuffix].filter(Boolean).join(' ')
+    : h.head || '-';
+  const totalMembers = 1 + (h.familyMembers?.length ?? 0);
+
+  return (
+    <Dialog open onOpenChange={(next) => { if (!next) onClose(); }}>
       <DialogContent className="records-modal__panel max-w-5xl">
         <DialogHeader className="records-modal__header">
           <div>
             <span className="section-eyebrow">Household profile</span>
-            <DialogTitle>{household.code}</DialogTitle>
+            <DialogTitle>{h.code}</DialogTitle>
           </div>
-          <DialogDescription className="sr-only">Review household assistance history and profile details.</DialogDescription>
+          <DialogDescription className="sr-only">Review household profile and assistance history.</DialogDescription>
         </DialogHeader>
 
+        {/* Header summary cards */}
         <div className="records-modal__summary records-modal__summary--triple">
-          {details.profile.map((item) => (
-            <div key={item.label} className="records-modal__card">
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
+          <div className="records-modal__card"><span>Barangay</span><strong>{h.barangay}</strong></div>
+          <div className="records-modal__card"><span>Total members</span><strong>{totalMembers}</strong></div>
+          <div className="records-modal__card"><span>Open cases</span><strong>{h.openCases || '0'}</strong></div>
+          {h.isLumon && (
+            <div className="records-modal__card records-modal__card--highlight">
+              <span>Lumon household</span>
+              <strong>{h.lumonFamilyCount || '2'}+ families</strong>
             </div>
-          ))}
+          )}
         </div>
 
+        {h.isLumon && h.lumonDescription && (
+          <div className="application-queue-note">
+            <strong>Shared household (lumon)</strong>
+            <p>{h.lumonDescription}</p>
+          </div>
+        )}
+
+        {/* Head of household */}
+        <section className="panel panel--highlight">
+          <SectionHeading eyebrow="Head of household" title={headFullName} />
+          <div className="hh-profile-grid">
+            <ProfileField label="Date of birth" value={h.headDateOfBirth} />
+            <ProfileField label="Age" value={age ? `${age} years old` : null} />
+            <ProfileField label="Gender" value={h.headGender} />
+            <ProfileField label="Civil status" value={h.headCivilStatus} />
+            <ProfileField label="Religion" value={h.headReligion} />
+            <ProfileField label="Contact number" value={h.headContactNumber} />
+            <ProfileField label="Occupation" value={h.headOccupation} />
+            <ProfileField label="Monthly income" value={h.headMonthlyIncome ? `PHP ${Number(h.headMonthlyIncome).toLocaleString()}` : null} />
+            <div className="hh-profile-field">
+              <span className="hh-profile-field__label">Income classification</span>
+              <IncomeBadge monthlyIncome={h.headMonthlyIncome ?? 0} />
+            </div>
+            <ProfileField label="School / studying" value={h.headSchoolBackground} />
+            <ProfileField label="Address" value={[h.purokSitio, h.addressLine1, h.barangay].filter(Boolean).join(', ')} />
+          </div>
+        </section>
+
+        {/* Family members */}
+        {h.familyMembers?.length > 0 && (
+          <section className="panel">
+            <SectionHeading eyebrow="Composition" title={`Family members (${h.familyMembers.length})`} />
+            <div className="hh-profile-members-list">
+              {h.familyMembers.map((member, index) => {
+                const memberAge = computeAge(member.dateOfBirth);
+                const memberName = formatMemberName(member);
+                return (
+                  <div key={member._id || index} className="hh-profile-member-card">
+                    <div className="hh-profile-member-card__header">
+                      <div>
+                        <span className="hh-profile-member-card__number">Member {index + 1}</span>
+                        <strong className="hh-profile-member-card__name">{memberName}</strong>
+                      </div>
+                      {member.relationship && (
+                        <span className="hh-profile-member-card__rel">{member.relationship}</span>
+                      )}
+                    </div>
+                    <div className="hh-profile-grid">
+                      <ProfileField label="Date of birth" value={member.dateOfBirth} />
+                      <ProfileField label="Age" value={memberAge ? `${memberAge} years old` : null} />
+                      <ProfileField label="Gender" value={member.gender} />
+                      <ProfileField label="Civil status" value={member.civilStatus} />
+                      <ProfileField label="Religion" value={member.religion} />
+                      <ProfileField label="Contact number" value={member.contactNumber} />
+                      <ProfileField label="Occupation" value={member.occupation} />
+                      <ProfileField label="Monthly income" value={member.monthlyIncome ? `PHP ${Number(member.monthlyIncome).toLocaleString()}` : null} />
+                      {(member.monthlyIncome !== '' && member.monthlyIncome != null) && (
+                        <div className="hh-profile-field">
+                          <span className="hh-profile-field__label">Income classification</span>
+                          <IncomeBadge monthlyIncome={member.monthlyIncome ?? 0} />
+                        </div>
+                      )}
+                      <ProfileField label="School / studying" value={member.schoolBackground} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* Assistance history from details */}
         <section className="panel panel--highlight">
           <SectionHeading eyebrow="History" title="Recent assistance history" />
           <div className="records-history">
             {details.history.length > 0 ? (
               details.history.map((item, index) => (
-                <article key={`${item.date}-${item.program}-${index}`} className="records-history__item">
+                <article key={`${item.date}-${index}`} className="records-history__item">
                   <div className="records-history__time">{item.date}</div>
                   <div className="records-history__body">
                     <strong>{item.program}</strong>
@@ -293,35 +704,69 @@ function HouseholdProfileModal({ household, details, onClose }) {
   );
 }
 
+// Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ HouseholdActions Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬
+
+function HouseholdActions({ item, onViewProfile, onEdit, onDelete }) {
+  return (
+    <div className="hh-row-actions" onClick={(e) => e.stopPropagation()}>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={(e) => { e.stopPropagation(); onViewProfile(); }}
+      >
+        View profile
+      </Button>
+      {onEdit ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={(e) => { e.stopPropagation(); onEdit(); }}
+        >
+          Edit
+        </Button>
+      ) : null}
+      {onDelete ? (
+        <Button
+          type="button"
+          variant="destructive"
+          size="sm"
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+        >
+          Delete
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+// Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ HouseholdsPage Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬
+
 function HouseholdsPage({ session }) {
   const [households, setHouseholds] = useState([]);
   const [barangays, setBarangays] = useState([]);
   const [selectedCode, setSelectedCode] = useState(null);
   const [loading, setLoading] = useState(true);
   const [modalMode, setModalMode] = useState(null);
-  const [householdForm, setHouseholdForm] = useState({
-    code: '',
-    head: '',
-    barangay: '',
-    members: '1',
-    purokSitio: '',
-    addressLine1: '',
-    postalCode: '',
-    monthlyIncome: '',
-    povertyLevel: '',
-  });
+  const [householdForm, setHouseholdForm] = useState(EMPTY_FORM);
   const [profileHousehold, setProfileHousehold] = useState(null);
   const [profileDetails, setProfileDetails] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
   const [pageError, setPageError] = useState('');
+
+  // Member editing state
+  const [editingMemberIndex, setEditingMemberIndex] = useState(null); // null = closed, -1 = new
+  const [draftMember, setDraftMember] = useState(null);
+
   const canManageHouseholds = canManageHouseholdsByRole(session);
   const roleKey = resolveSessionRoleKey(session);
   const isBarangayScopedRole = roleKey === 'barangay_secretary' || roleKey === 'barangay_staff';
   const scopedBarangayName = session?.barangayName || '';
 
   useEffect(() => {
-    async function initHouseholds() {
+    async function init() {
       try {
         const [data, bList] = await Promise.all([
           supabaseService.getHouseholds(),
@@ -329,53 +774,85 @@ function HouseholdsPage({ session }) {
         ]);
         setHouseholds(data);
         setBarangays(bList);
-        if (data.length > 0) {
-          setSelectedCode(data[0].code);
-        }
+        if (data.length > 0) setSelectedCode(data[0].code);
       } catch (error) {
         setPageError(error.message || 'Failed to load households.');
       } finally {
         setLoading(false);
       }
     }
-
-    void initHouseholds();
+    void init();
   }, []);
 
-  const resetForm = () => {
-    setHouseholdForm({
-      code: '',
-      head: '',
-      barangay: '',
-      members: '1',
-      purokSitio: '',
-      addressLine1: '',
-      postalCode: '',
-      monthlyIncome: '',
-      povertyLevel: '',
-    });
-  };
+  const resetForm = () => setHouseholdForm(EMPTY_FORM);
 
   const handleFormChange = (event) => {
-    const { name, value } = event.target;
-    if (name === 'barangay' && isBarangayScopedRole) {
-      return;
-    }
+    const { name, value, type, checked } = event.target;
+    if (name === 'barangay' && isBarangayScopedRole) return;
 
     setHouseholdForm((current) => {
       if (name === 'barangay' && modalMode === 'add') {
-        return {
-          ...current,
-          barangay: value,
-          code: nextHouseholdCode(households, value, barangays),
-        };
+        return { ...current, barangay: value, code: nextHouseholdCode(households, value, barangays) };
       }
-
-      return {
-        ...current,
-        [name]: value,
-      };
+      if (type === 'checkbox') {
+        if (name === 'headCurrentlyStudying' && !checked) {
+          return { ...current, headCurrentlyStudying: false, headSchoolBackground: '' };
+        }
+        return { ...current, [name]: checked };
+      }
+      return { ...current, [name]: value };
     });
+  };
+
+  // Member handlers
+  const handleAddMember = () => {
+    setDraftMember(newMember());
+    setEditingMemberIndex(-1);
+  };
+
+  const handleDraftMemberChange = (fieldName, value) => {
+    setDraftMember((current) => {
+      if (fieldName === 'currentlyStudying' && !value) {
+        return { ...current, currentlyStudying: false, schoolBackground: '' };
+      }
+      return { ...current, [fieldName]: value };
+    });
+  };
+
+  const handleSaveMember = (index) => {
+    if (!draftMember) return;
+    setHouseholdForm((current) => {
+      const updatedMembers = [...current.familyMembers];
+      if (index === -1) {
+        updatedMembers.push(draftMember);
+      } else {
+        updatedMembers[index] = draftMember;
+      }
+      return { ...current, familyMembers: updatedMembers };
+    });
+    setDraftMember(null);
+    setEditingMemberIndex(null);
+  };
+
+  const handleCancelMember = () => {
+    setDraftMember(null);
+    setEditingMemberIndex(null);
+  };
+
+  const handleEditMember = (index) => {
+    setDraftMember({ ...householdForm.familyMembers[index] });
+    setEditingMemberIndex(index);
+  };
+
+  const handleRemoveMember = (index) => {
+    setHouseholdForm((current) => ({
+      ...current,
+      familyMembers: current.familyMembers.filter((_, i) => i !== index),
+    }));
+    if (editingMemberIndex === index) {
+      setDraftMember(null);
+      setEditingMemberIndex(null);
+    }
   };
 
   const openAddModal = () => {
@@ -384,16 +861,12 @@ function HouseholdsPage({ session }) {
       ? (scopedBarangayName || barangays[0]?.name || '')
       : (barangays[0]?.name ?? '');
     setHouseholdForm({
+      ...EMPTY_FORM,
       code: nextHouseholdCode(households, defaultBarangay, barangays),
-      head: '',
       barangay: defaultBarangay,
-      members: '1',
-      purokSitio: '',
-      addressLine1: '',
-      postalCode: '',
-      monthlyIncome: '',
-      povertyLevel: '',
     });
+    setEditingMemberIndex(null);
+    setDraftMember(null);
     setModalMode('add');
   };
 
@@ -401,21 +874,42 @@ function HouseholdsPage({ session }) {
     setFormError('');
     setHouseholdForm({
       code: row.code,
-      head: row.head,
       barangay: row.barangay,
-      members: String(row.members),
       purokSitio: row.purokSitio || '',
       addressLine1: row.addressLine1 || '',
-      postalCode: row.postalCode || '',
-      monthlyIncome: row.monthlyIncome || '',
-      povertyLevel: row.povertyLevel || '',
+      headLastName: row.headLastName || '',
+      headFirstName: row.headFirstName || '',
+      headMiddleName: row.headMiddleName || '',
+      headSuffix: row.headSuffix || '',
+      headDateOfBirth: row.headDateOfBirth || '',
+      headGender: row.headGender || '',
+      headCivilStatus: row.headCivilStatus || '',
+      headReligion: row.headReligion || '',
+      headContactNumber: row.headContactNumber || '',
+      headCurrentlyStudying: isCurrentlyStudyingFromValue(row.headSchoolBackground),
+      headSchoolBackground: row.headSchoolBackground || '',
+      headOccupation: row.headOccupation || '',
+      headMonthlyIncome: row.headMonthlyIncome || '',
+      familyMembers: Array.isArray(row.familyMembers)
+        ? row.familyMembers.map((member) => ({
+            ...member,
+            currentlyStudying: isCurrentlyStudyingFromValue(member.schoolBackground),
+          }))
+        : [],
+      isLumon: row.isLumon || false,
+      lumonFamilyCount: row.lumonFamilyCount || '1',
+      lumonDescription: row.lumonDescription || '',
     });
+    setEditingMemberIndex(null);
+    setDraftMember(null);
     setModalMode('edit');
   };
 
   const closeModal = () => {
     setModalMode(null);
     setFormError('');
+    setEditingMemberIndex(null);
+    setDraftMember(null);
     resetForm();
   };
 
@@ -424,7 +918,6 @@ function HouseholdsPage({ session }) {
     setProfileHousehold(row);
     setProfileDetails(null);
     setPageError('');
-
     try {
       const details = await supabaseService.getHouseholdDetails(row.code, row);
       setProfileDetails(details);
@@ -440,19 +933,40 @@ function HouseholdsPage({ session }) {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    const f = householdForm;
 
     const payload = {
-      code: householdForm.code.trim().toUpperCase(),
-      head: householdForm.head.trim(),
-      barangay: isBarangayScopedRole
-        ? (scopedBarangayName || householdForm.barangay.trim())
-        : householdForm.barangay.trim(),
-      members: String(householdForm.members),
-      purokSitio: householdForm.purokSitio.trim(),
-      addressLine1: householdForm.addressLine1.trim(),
-      postalCode: householdForm.postalCode.trim(),
-      monthlyIncome: householdForm.monthlyIncome.trim(),
-      povertyLevel: householdForm.povertyLevel.trim(),
+      code: f.code.trim().toUpperCase(),
+      head: formatHeadName(f) || f.code,
+      barangay: isBarangayScopedRole ? (scopedBarangayName || f.barangay.trim()) : f.barangay.trim(),
+      members: String(1 + f.familyMembers.length),
+      purokSitio: f.purokSitio.trim(),
+      addressLine1: f.addressLine1.trim(),
+      postalCode: '',
+      monthlyIncome: f.headMonthlyIncome.trim(),
+      povertyLevel: '',
+      // Extended fields
+      headLastName: f.headLastName.trim(),
+      headFirstName: f.headFirstName.trim(),
+      headMiddleName: f.headMiddleName.trim(),
+      headSuffix: f.headSuffix,
+      headDateOfBirth: f.headDateOfBirth,
+      headGender: f.headGender,
+      headCivilStatus: f.headCivilStatus,
+      headReligion: f.headReligion.trim(),
+      headContactNumber: f.headContactNumber.trim(),
+      headCurrentlyStudying: Boolean(f.headCurrentlyStudying),
+      headSchoolBackground: f.headCurrentlyStudying ? f.headSchoolBackground.trim() : '',
+      headOccupation: f.headOccupation.trim(),
+      headMonthlyIncome: f.headMonthlyIncome.trim(),
+      familyMembers: f.familyMembers.map((member) => ({
+        ...member,
+        currentlyStudying: Boolean(member.currentlyStudying),
+        schoolBackground: member.currentlyStudying ? String(member.schoolBackground ?? '').trim() : '',
+      })),
+      isLumon: f.isLumon,
+      lumonFamilyCount: f.isLumon ? f.lumonFamilyCount : '1',
+      lumonDescription: f.isLumon ? f.lumonDescription.trim() : '',
     };
 
     setIsSubmitting(true);
@@ -463,19 +977,21 @@ function HouseholdsPage({ session }) {
         ? await supabaseService.updateHousehold(payload)
         : await supabaseService.createHousehold(payload);
 
+      // Merge extended fields back since the service may return only core fields
+      const enriched = { ...payload, ...household };
+
       setHouseholds((current) => {
         if (modalMode === 'edit') {
-          return current.map((item) => (item.code === household.code ? household : item));
+          return current.map((item) => (item.code === enriched.code ? enriched : item));
         }
-
-        return [household, ...current.filter((item) => item.code !== household.code)];
+        return [enriched, ...current.filter((item) => item.code !== enriched.code)];
       });
 
-      setSelectedCode(household.code);
+      setSelectedCode(enriched.code);
 
-      if (profileHousehold?.code === household.code) {
-        setProfileHousehold(household);
-        const details = await supabaseService.getHouseholdDetails(household.code, household);
+      if (profileHousehold?.code === enriched.code) {
+        setProfileHousehold(enriched);
+        const details = await supabaseService.getHouseholdDetails(enriched.code, enriched);
         setProfileDetails(details);
       }
 
@@ -489,24 +1005,14 @@ function HouseholdsPage({ session }) {
 
   const handleDelete = async (code) => {
     const confirmed = window.confirm(`Delete household ${code}?`);
-    if (!confirmed) {
-      return;
-    }
-
+    if (!confirmed) return;
     setPageError('');
-
     try {
       await supabaseService.deleteHousehold(code);
-      const nextHouseholds = households.filter((item) => item.code !== code);
-      setHouseholds(nextHouseholds);
-
-      if (profileHousehold?.code === code) {
-        closeProfileModal();
-      }
-
-      if (selectedCode === code) {
-        setSelectedCode(nextHouseholds[0]?.code ?? null);
-      }
+      const next = households.filter((item) => item.code !== code);
+      setHouseholds(next);
+      if (profileHousehold?.code === code) closeProfileModal();
+      if (selectedCode === code) setSelectedCode(next[0]?.code ?? null);
     } catch (error) {
       setPageError(error.message || 'Failed to delete household.');
     }
@@ -516,11 +1022,35 @@ function HouseholdsPage({ session }) {
     { key: 'code', label: 'Code', render: (item) => <strong>{item.code}</strong> },
     { key: 'head', label: 'Head' },
     { key: 'barangay', label: 'Barangay' },
-    { key: 'members', label: 'Members' },
     {
-      key: 'openCases',
-      label: 'Open cases',
-      getSortValue: (item) => Number(item.openCases),
+      key: 'members',
+      label: 'Members',
+      render: (item) => (
+        <span>
+          {item.members}
+          {item.isLumon ? <span className="hh-lumon-badge" title="Lumon household">LUMON</span> : null}
+        </span>
+      ),
+    },
+    {
+      key: 'incomeClassification',
+      label: 'Income classification',
+      render: (item) => {
+        const label = getIncomeClassificationLabel(item.monthlyIncome);
+        const isPriority = classifyIncome(item.monthlyIncome).tupadPriority;
+        return (
+          <span className={`hh-income-classification ${isPriority ? 'hh-income-classification--priority' : ''}`}>
+            {label}
+          </span>
+        );
+      },
+      getSortValue: (item) => getIncomeClassificationLabel(item.monthlyIncome),
+    },
+    {
+      key: 'availPrograms',
+      label: 'Avail programs',
+      render: (item) => String(Number(item.availProgramsCount ?? 0)),
+      getSortValue: (item) => Number(item.availProgramsCount ?? 0),
     },
     {
       key: '_actions',
@@ -537,7 +1067,11 @@ function HouseholdsPage({ session }) {
   ];
 
   if (loading) {
-    return <div className="workspace-page page-load-spinner">Loading households...</div>;
+    return (
+      <div className="workspace-page">
+        <div className="page-load-spinner" role="status" aria-live="polite">Loading households...</div>
+      </div>
+    );
   }
 
   return (
@@ -561,13 +1095,11 @@ function HouseholdsPage({ session }) {
             searchPlaceholder="Search code, head, or barangay"
             toolbarActions={
               canManageHouseholds && (
-                <Button type="button" onClick={openAddModal}>
-                  Add household
-                </Button>
+                <Button type="button" onClick={openAddModal}>Add household</Button>
               )
             }
             initialSortKey="code"
-            gridTemplate="1.1fr 1.5fr 1.4fr 0.8fr 0.8fr 260px"
+            gridTemplate="1fr 1.35fr 1fr 0.7fr 1.6fr 1.35fr 260px"
           />
         </section>
       </div>
@@ -582,6 +1114,14 @@ function HouseholdsPage({ session }) {
           errorMessage={formError}
           isSubmitting={isSubmitting}
           onChange={handleFormChange}
+          onAddMember={handleAddMember}
+          onSaveMember={handleSaveMember}
+          onCancelMember={handleCancelMember}
+          onEditMember={handleEditMember}
+          onRemoveMember={handleRemoveMember}
+          editingMemberIndex={editingMemberIndex}
+          draftMember={draftMember}
+          onDraftMemberChange={handleDraftMemberChange}
           onClose={closeModal}
           onSubmit={handleSubmit}
         />
@@ -599,3 +1139,6 @@ function HouseholdsPage({ session }) {
 }
 
 export default HouseholdsPage;
+
+
+

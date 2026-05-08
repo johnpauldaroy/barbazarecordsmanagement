@@ -8,6 +8,7 @@ import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
+import { classifyIncome } from '../incomeClassification';
 import {
   canApproveApplications as canApproveApplicationsByRole,
   canCreateApplications as canCreateApplicationsByRole,
@@ -118,6 +119,10 @@ function AddApplicationModal({
   onSelectSuggestion,
 }) {
   const requirementList = selectedProgram?.requirements ?? [];
+  const incomeTier = formState.householdMonthlyIncome !== ''
+    && formState.householdMonthlyIncome != null
+    ? classifyIncome(formState.householdMonthlyIncome)
+    : null;
 
   return (
     <Dialog open onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
@@ -134,24 +139,6 @@ function AddApplicationModal({
 
         <form className="application-form-grid gap-4" onSubmit={onSubmit}>
           <label className="settings-field autocomplete-container">
-            <span>Applicant name</span>
-            <Input
-              name="applicant"
-              value={formState.applicant}
-              onChange={onChange}
-              placeholder="Enter full name"
-              required
-              autoComplete="off"
-            />
-            {activeField === 'applicant' && (
-              <SuggestionsDropdown
-                suggestions={suggestions}
-                onSelect={onSelectSuggestion}
-              />
-            )}
-          </label>
-
-          <label className="settings-field autocomplete-container">
             <span>Household code</span>
             <Input
               name="household"
@@ -162,6 +149,24 @@ function AddApplicationModal({
               autoComplete="off"
             />
             {activeField === 'household' && (
+              <SuggestionsDropdown
+                suggestions={suggestions}
+                onSelect={onSelectSuggestion}
+              />
+            )}
+          </label>
+
+          <label className="settings-field autocomplete-container">
+            <span>Applicant name</span>
+            <Input
+              name="applicant"
+              value={formState.applicant}
+              onChange={onChange}
+              placeholder="Enter full name"
+              required
+              autoComplete="off"
+            />
+            {activeField === 'applicant' && (
               <SuggestionsDropdown
                 suggestions={suggestions}
                 onSelect={onSelectSuggestion}
@@ -209,6 +214,23 @@ function AddApplicationModal({
               placeholder="Auto-filled from household records"
               readOnly
             />
+          </label>
+
+          <label className="settings-field">
+            <span>Income classification</span>
+            <Input
+              value={incomeTier ? incomeTier.label : 'Select household first'}
+              readOnly
+            />
+            {incomeTier ? (
+              <small className="application-income-meta">
+                Range: {incomeTier.range}
+              </small>
+            ) : (
+              <small className="application-income-meta">
+                Household monthly income is needed to classify.
+              </small>
+            )}
           </label>
 
           <label className="settings-field application-form-grid__wide">
@@ -509,6 +531,7 @@ function ApplicationsPage({ session }) {
   const [newApplication, setNewApplication] = useState({
     applicant: '',
     household: '',
+    householdMonthlyIncome: '',
     programCode: '',
     barangay: '',
     address: '',
@@ -614,6 +637,7 @@ function ApplicationsPage({ session }) {
       ...current,
       applicant: '',
       household: '',
+      householdMonthlyIncome: '',
       programCode: programs[0]?.code || '',
       barangay: isBarangayScopedRole ? (scopedBarangayName || barangays[0]?.name || '') : (barangays[0]?.name || ''),
       address: '',
@@ -700,6 +724,7 @@ function ApplicationsPage({ session }) {
     setNewApplication((current) => ({
       ...current,
       [name]: value,
+      ...(name === 'applicant' || name === 'household' ? { householdMonthlyIncome: '' } : {}),
       uploadedRequirements: name === 'programCode' ? {} : current.uploadedRequirements,
     }));
 
@@ -735,6 +760,7 @@ function ApplicationsPage({ session }) {
       household: suggestion.householdCode,
       barangay: isBarangayScopedRole ? (scopedBarangayName || current.barangay) : (suggestion.barangay || current.barangay),
       address: suggestion.address || '',
+      householdMonthlyIncome: suggestion.monthlyIncome ?? '',
     }));
     setSuggestions([]);
     setActiveSuggestionField(null);
@@ -866,13 +892,15 @@ function ApplicationsPage({ session }) {
           <div className="panel-header">
           <SectionHeading eyebrow="Queue" title="Assigned applications" />
             <div className="panel-header__actions">
-              <Button
-                type="button"
-                onClick={() => setShowAddModal(true)}
-                disabled={!canCreateApplications || !programs.length || !barangays.length}
-              >
-                Add application
-              </Button>
+              {canCreateApplications ? (
+                <Button
+                  type="button"
+                  onClick={() => setShowAddModal(true)}
+                  disabled={!programs.length || !barangays.length}
+                >
+                  Add application
+                </Button>
+              ) : null}
             </div>
           </div>
 

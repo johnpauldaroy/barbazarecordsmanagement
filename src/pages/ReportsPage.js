@@ -54,7 +54,13 @@ function ReportsPage({ session }) {
   }, [session]);
 
   if (loading) {
-    return <div className="workspace-page">Loading reports...</div>;
+    return (
+      <div className="workspace-page">
+        <div className="page-load-spinner" role="status" aria-live="polite">
+          Loading reports…
+        </div>
+      </div>
+    );
   }
 
   const maxPending = Math.max(...workload.map((item) => item.pending), 1);

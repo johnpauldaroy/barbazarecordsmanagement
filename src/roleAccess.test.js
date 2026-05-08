@@ -1,57 +1,59 @@
 import {
   canAccessSection,
   canApproveApplications,
+  canCreateApplications,
   canManageHouseholds,
-  canManagePortalUsers,
+  canViewHouseholds,
   canViewUploadedDocuments,
   getDefaultPathForRole,
   resolveSessionRoleKey,
 } from './roleAccess';
 import { portalSections } from './systemData';
 
-test('normalizes role labels and aliases', () => {
-  expect(resolveSessionRoleKey({ role: 'MSWD Processor' })).toBe('mswdo_staff');
-  expect(resolveSessionRoleKey({ role: 'Super Admin' })).toBe('super_admin');
-  expect(resolveSessionRoleKey({ roleKey: 'admin' })).toBe('super_admin');
-  expect(resolveSessionRoleKey({ roleKey: 'staff' })).toBe('mswdo_staff');
-  expect(resolveSessionRoleKey({ role: 'Barangay Staff' })).toBe('barangay_secretary');
-  expect(resolveSessionRoleKey({ roleKey: 'barangay' })).toBe('barangay_secretary');
+test('normalizes legacy roles into admin or barangay secretary', () => {
+  expect(resolveSessionRoleKey({ role: 'MSWD Processor' })).toBe('admin');
+  expect(resolveSessionRoleKey({ role: 'Super Admin' })).toBe('admin');
+  expect(resolveSessionRoleKey({ roleKey: 'admin' })).toBe('admin');
+  expect(resolveSessionRoleKey({ roleKey: 'barangay_staff' })).toBe('barangay_secretary');
+  expect(resolveSessionRoleKey({ roleKey: 'mswdo_approver' })).toBe('admin');
 });
 
-test('limits settings section to super admins', () => {
-  expect(canAccessSection({ roleKey: 'super_admin' }, 'settings')).toBe(true);
-  expect(canAccessSection({ roleKey: 'mswdo_staff' }, 'settings')).toBe(false);
+test('grants admin access to dashboard, applications, households, land map, and settings', () => {
+  expect(canAccessSection({ roleKey: 'admin' }, 'dashboard')).toBe(true);
+  expect(canAccessSection({ roleKey: 'admin' }, 'applications')).toBe(true);
+  expect(canAccessSection({ roleKey: 'admin' }, 'households')).toBe(true);
+  expect(canAccessSection({ roleKey: 'admin' }, 'land_map')).toBe(true);
+  expect(canAccessSection({ roleKey: 'admin' }, 'settings')).toBe(true);
+  expect(canAccessSection({ roleKey: 'admin' }, 'reports')).toBe(false);
+});
+
+test('grants barangay secretary access to dashboard, applications, households, reports, and land map', () => {
+  expect(canAccessSection({ roleKey: 'barangay_secretary' }, 'dashboard')).toBe(true);
+  expect(canAccessSection({ roleKey: 'barangay_secretary' }, 'applications')).toBe(true);
+  expect(canAccessSection({ roleKey: 'barangay_secretary' }, 'households')).toBe(true);
+  expect(canAccessSection({ roleKey: 'barangay_secretary' }, 'reports')).toBe(true);
+  expect(canAccessSection({ roleKey: 'barangay_secretary' }, 'land_map')).toBe(true);
   expect(canAccessSection({ roleKey: 'barangay_secretary' }, 'settings')).toBe(false);
 });
 
-test('assigns default path based on role access', () => {
-  expect(getDefaultPathForRole({ roleKey: 'resident' }, portalSections)).toBe('/applications');
-  expect(getDefaultPathForRole({ roleKey: 'super_admin' }, portalSections)).toBe('/dashboard');
+test('sets default path to dashboard for all roles', () => {
+  expect(getDefaultPathForRole({ roleKey: 'admin' }, portalSections)).toBe('/dashboard');
+  expect(getDefaultPathForRole({ roleKey: 'barangay_secretary' }, portalSections)).toBe('/dashboard');
 });
 
-test('enforces management privileges by role', () => {
-  expect(canManagePortalUsers({ roleKey: 'super_admin' })).toBe(true);
-  expect(canManagePortalUsers({ roleKey: 'mswdo_staff' })).toBe(false);
+test('enforces action permissions', () => {
+  expect(canCreateApplications({ roleKey: 'barangay_secretary' })).toBe(true);
+  expect(canCreateApplications({ roleKey: 'admin' })).toBe(false);
 
-  expect(canManageHouseholds({ roleKey: 'mswdo_staff' })).toBe(true);
   expect(canManageHouseholds({ roleKey: 'barangay_secretary' })).toBe(true);
-  expect(canManageHouseholds({ roleKey: 'mswdo_approver' })).toBe(false);
-});
+  expect(canManageHouseholds({ roleKey: 'admin' })).toBe(false);
 
-test('limits approval decisions to admins', () => {
-  expect(canApproveApplications({ roleKey: 'super_admin' })).toBe(true);
+  expect(canViewHouseholds({ roleKey: 'barangay_secretary' })).toBe(true);
+  expect(canViewHouseholds({ roleKey: 'admin' })).toBe(true);
+
   expect(canApproveApplications({ roleKey: 'admin' })).toBe(true);
-  expect(canApproveApplications({ roleKey: 'mswdo_staff' })).toBe(false);
-  expect(canApproveApplications({ roleKey: 'mswdo_approver' })).toBe(false);
   expect(canApproveApplications({ roleKey: 'barangay_secretary' })).toBe(false);
-});
 
-test('allows only admins and staff to view uploaded documents', () => {
-  expect(canViewUploadedDocuments({ roleKey: 'super_admin' })).toBe(true);
   expect(canViewUploadedDocuments({ roleKey: 'admin' })).toBe(true);
-  expect(canViewUploadedDocuments({ roleKey: 'mswdo_staff' })).toBe(true);
-  expect(canViewUploadedDocuments({ roleKey: 'staff' })).toBe(true);
-  expect(canViewUploadedDocuments({ roleKey: 'mswdo_approver' })).toBe(false);
-  expect(canViewUploadedDocuments({ roleKey: 'barangay_secretary' })).toBe(false);
-  expect(canViewUploadedDocuments({ roleKey: 'resident' })).toBe(false);
+  expect(canViewUploadedDocuments({ roleKey: 'barangay_secretary' })).toBe(true);
 });

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import './App.css';
 import './shadcn-professional.css';
-import { LogOut } from 'lucide-react';
+import { LogOut, Menu, X } from 'lucide-react';
 import { clearStoredSession, getStoredSession, subscribeToAuthChanges } from './auth';
 import LoginPage from './pages/LoginPage';
 import { routes, resolveRoute } from './routes';
@@ -22,6 +22,9 @@ const sectionIcons = {
   ),
   households: (
     <path d="m4.75 10 7.25-5.5L19.25 10v7a1 1 0 0 1-1 1h-3.5v-4.5h-5.5V18h-3.5a1 1 0 0 1-1-1z" />
+  ),
+  land_map: (
+    <path d="M4.75 6.25 10 4.5l4 1.75 5.25-1.75v13L14 19.25l-4-1.75-5.25 1.75zM10 4.5v13m4-11.25v13" />
   ),
   reports: (
     <path d="M6.25 5.25h8.5l3 3v9.5a1 1 0 0 1-1 1h-10.5a1 1 0 0 1-1-1v-11.5a1 1 0 0 1 1-1Zm2 7.5h7.5m-7.5-3h4.5m3-1.5v2h2" />
@@ -64,6 +67,7 @@ function App() {
   const [authReady, setAuthReady] = useState(false);
   const [currentPath, setCurrentPath] = useState(() => resolveRoute(window.location.hash));
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const sessionInitials = session?.name
     ?.split(' ')
     .filter(Boolean)
@@ -118,10 +122,11 @@ function App() {
 
     const syncRoute = () => {
       setCurrentPath(resolveRoute(window.location.hash));
+      setMobileNavOpen(false);
     };
 
     if (!window.location.hash) {
-      window.location.hash = session ? '#/dashboard' : '#/login';
+      window.location.hash = session ? '#/applications' : '#/login';
     } else {
       syncRoute();
     }
@@ -189,10 +194,11 @@ function App() {
   if (!authReady) {
     return (
       <div className="auth-shell">
-        <section className="auth-card" aria-label="Loading session">
+        <section className="auth-card auth-card--loading" aria-label="Loading session">
           <div className="auth-form__header">
-            <h2>Loading workspace</h2>
-            <p>Checking your session.</p>
+            <div className="page-load-spinner" role="status" aria-live="polite">
+              Checking your session…
+            </div>
           </div>
         </section>
       </div>
@@ -210,17 +216,29 @@ function App() {
       className={`portal-shell ${sidebarCollapsed ? 'portal-shell--sidebar-collapsed' : ''}`}
     >
       <header className="portal-topbar">
-        <a href="#/dashboard" className="portal-topbar__brand" aria-label="MSWD Portal">
-          <img
-            src={`${process.env.PUBLIC_URL}/barbaza-seal.png`}
-            alt=""
-            className="portal-topbar__seal"
-          />
-          <span>
-            <strong>MSWD PORTAL</strong>
-            <small>Barbaza Records Management System</small>
-          </span>
-        </a>
+        <div className="topbar-left">
+          <button
+            type="button"
+            className="topbar-hamburger"
+            onClick={() => setMobileNavOpen((v) => !v)}
+            aria-label={mobileNavOpen ? 'Close navigation' : 'Open navigation'}
+            aria-expanded={mobileNavOpen}
+          >
+            {mobileNavOpen ? <X aria-hidden="true" /> : <Menu aria-hidden="true" />}
+          </button>
+
+          <a href="#/applications" className="portal-topbar__brand" aria-label="MSWD Portal">
+            <img
+              src={`${process.env.PUBLIC_URL}/barbaza-seal.png`}
+              alt=""
+              className="portal-topbar__seal"
+            />
+            <span>
+              <strong>MSWD PORTAL</strong>
+              <small>Barbaza Records Management System</small>
+            </span>
+          </a>
+        </div>
 
         <div className="topbar-actions" aria-label="Workspace actions">
           <div className="topbar-session">
@@ -233,7 +251,7 @@ function App() {
                 <small>{session.role}</small>
               </div>
             </div>
-            <button type="button" className="topbar-signout" onClick={handleSignOut}>
+            <button type="button" className="topbar-signout" onClick={handleSignOut} title="Sign out">
               <LogOut aria-hidden="true" />
               <span>Sign out</span>
             </button>
@@ -241,7 +259,15 @@ function App() {
         </div>
       </header>
 
-      <aside className={`portal-sidebar ${sidebarCollapsed ? 'portal-sidebar--collapsed' : ''}`}>
+      {mobileNavOpen ? (
+        <div
+          className="portal-sidebar-backdrop"
+          onClick={() => setMobileNavOpen(false)}
+          aria-hidden="true"
+        />
+      ) : null}
+
+      <aside className={`portal-sidebar ${sidebarCollapsed ? 'portal-sidebar--collapsed' : ''} ${mobileNavOpen ? 'portal-sidebar--mobile-open' : ''}`}>
         <div className="portal-sidebar__header">
           <div className="portal-brand" aria-hidden="true">
             <span className="portal-brand__text">
@@ -284,6 +310,7 @@ function App() {
       <main className="portal-main">
         <div className="portal-page-header">
           <div>
+            <span className="section-eyebrow">MSWD Portal</span>
             <h1>{currentRoute.label}</h1>
           </div>
         </div>

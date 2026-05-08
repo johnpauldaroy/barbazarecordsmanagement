@@ -59,7 +59,7 @@
 }
 
 #root {
-  width: min(1520px, calc(100% - 1.5rem));
-  margin: 0 auto;
-  padding: 0.9rem 0;
+  width: 100%;
+  margin: 0;
+  padding: 0;
 }

@@ -11,7 +11,7 @@ import {
   Title,
   Tooltip,
 } from 'chart.js';
-import { Bar, Doughnut, Line } from 'react-chartjs-2';
+import { Bar, Line } from 'react-chartjs-2';
 import SectionHeading from './SectionHeading';
 
 ChartJS.register(
@@ -29,9 +29,6 @@ ChartJS.register(
 
 const BLUE = '#1d4ed8';
 const BLUE_SOFT = '#3b82f6';
-const SLATE = '#64748b';
-const EMERALD = '#047857';
-const AMBER = '#b45309';
 const RUST = '#9a3412';
 const RED = '#b42318';
 
@@ -124,16 +121,6 @@ const lineOptions = {
   scales: axisStyle,
 };
 
-const doughnutOptions = {
-  responsive: true,
-  maintainAspectRatio: false,
-  cutout: '62%',
-  plugins: {
-    legend: sharedLegend,
-    tooltip: sharedTooltip,
-  },
-};
-
 const hBarOptions = {
   ...barOptions,
   indexAxis: 'y',
@@ -166,10 +153,6 @@ function ChartPanel({ eyebrow, title, description, height, href, children }) {
       {panel}
     </a>
   );
-}
-
-function hasPositiveMetric(values = []) {
-  return values.some((value) => Number(value ?? 0) > 0);
 }
 
 function DashboardCharts({ data, drilldowns = {} }) {
@@ -214,11 +197,13 @@ function DashboardCharts({ data, drilldowns = {} }) {
     );
   }
 
-  const hasData =
-    hasPositiveMetric(monthlyApprovals.map((item) => item.count))
-    || hasPositiveMetric(programBreakdown.values ?? [])
-    || workloadByBarangay.some((item) => Number(item.pending ?? 0) > 0 || Number(item.approved ?? 0) > 0)
-    || slaTrend.some((item) => Number(item.breaches ?? 0) > 0 || Number(item.withinSla ?? 0) > 0);
+  const hasSlaData = slaTrend.some(
+    (item) => Number(item.breaches ?? 0) > 0 || Number(item.withinSla ?? 0) > 0
+  );
+  const hasWorkloadData = workloadByBarangay.some(
+    (item) => Number(item.pending ?? 0) > 0 || Number(item.approved ?? 0) > 0
+  );
+  const hasData = hasSlaData || hasWorkloadData;
 
   if (!hasData) {
     return (
@@ -231,24 +216,6 @@ function DashboardCharts({ data, drilldowns = {} }) {
       </section>
     );
   }
-
-  const monthlyApprovalsData = {
-    labels: monthlyApprovals.map((item) => item.month),
-    datasets: [
-      {
-        label: 'Approvals',
-        data: monthlyApprovals.map((item) => item.count),
-        backgroundColor: monthlyApprovals.map((_, index) =>
-          index === monthlyApprovals.length - 1 ? AMBER : 'rgba(29, 78, 216, 0.72)'
-        ),
-        hoverBackgroundColor: monthlyApprovals.map((_, index) =>
-          index === monthlyApprovals.length - 1 ? '#c1660f' : BLUE_SOFT
-        ),
-        borderRadius: 8,
-        borderSkipped: false,
-      },
-    ],
-  };
 
   const slaTrendData = {
     labels: slaTrend.map((item) => item.period),
@@ -274,20 +241,6 @@ function DashboardCharts({ data, drilldowns = {} }) {
         pointRadius: 3,
         tension: 0.3,
         fill: true,
-      },
-    ],
-  };
-
-  const programBreakdownData = {
-    labels: programBreakdown.labels || [],
-    datasets: [
-      {
-        data: programBreakdown.values || [],
-        backgroundColor: [BLUE, SLATE, EMERALD, AMBER],
-        hoverBackgroundColor: [BLUE_SOFT, '#7b8798', '#0c8f6a', '#c1660f'],
-        borderColor: '#ffffff',
-        borderWidth: 3,
-        hoverOffset: 8,
       },
     ],
   };
@@ -320,49 +273,33 @@ function DashboardCharts({ data, drilldowns = {} }) {
         title="Performance at a glance"
       />
       <div className="dashboard-analytics-layout">
-        <div className="dashboard-analytics-column">
-          <ChartPanel
-            eyebrow="6-month trend"
-            title="Monthly Approvals"
-            description="Approvals and releases per month."
-            href={drilldowns.monthlyApprovals}
-            height={245}
-          >
-            <Bar data={monthlyApprovalsData} options={barOptions} />
-          </ChartPanel>
+        {hasSlaData ? (
+          <div className="dashboard-analytics-column">
+            <ChartPanel
+              eyebrow="SLA monitor"
+              title="SLA Compliance Trend"
+              description="Within-SLA volume against 48-hour breaches."
+              href={drilldowns.slaTrend}
+              height={245}
+            >
+              <Line data={slaTrendData} options={lineOptions} />
+            </ChartPanel>
+          </div>
+        ) : null}
 
-          <ChartPanel
-            eyebrow="SLA monitor"
-            title="SLA Compliance Trend"
-            description="Within-SLA volume against 48-hour breaches."
-            href={drilldowns.slaTrend}
-            height={245}
-          >
-            <Line data={slaTrendData} options={lineOptions} />
-          </ChartPanel>
-        </div>
-
-        <div className="dashboard-analytics-column">
-          <ChartPanel
-            eyebrow="Distribution"
-            title="Program Breakdown"
-            description="Beneficiary households by program."
-            href={drilldowns.programBreakdown}
-            height={290}
-          >
-            <Doughnut data={programBreakdownData} options={doughnutOptions} />
-          </ChartPanel>
-
-          <ChartPanel
-            eyebrow="Workload"
-            title="Cases by Barangay"
-            description="Pending and approved cases by barangay."
-            href={drilldowns.workloadByBarangay}
-            height={290}
-          >
-            <Bar data={workloadByBarangayData} options={hBarOptions} />
-          </ChartPanel>
-        </div>
+        {hasWorkloadData ? (
+          <div className="dashboard-analytics-column">
+            <ChartPanel
+              eyebrow="Workload"
+              title="Cases by Barangay"
+              description="Pending and approved cases by barangay."
+              href={drilldowns.workloadByBarangay}
+              height={290}
+            >
+              <Bar data={workloadByBarangayData} options={hBarOptions} />
+            </ChartPanel>
+          </div>
+        ) : null}
       </div>
     </section>
   );

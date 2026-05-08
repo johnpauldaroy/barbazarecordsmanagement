@@ -1,20 +1,18 @@
 const ROLE_ALIASES = {
-  super_admin: 'super_admin',
-  'super admin': 'super_admin',
-  admin: 'super_admin',
-  administrator: 'super_admin',
-
-  mswdo_staff: 'mswdo_staff',
-  mswd_staff: 'mswdo_staff',
-  staff: 'mswdo_staff',
-  'mswdo staff': 'mswdo_staff',
-  'mswd staff': 'mswdo_staff',
-  'mswd processor': 'mswdo_staff',
-
-  mswdo_approver: 'mswdo_approver',
-  'mswdo approver': 'mswdo_approver',
-  'mswd supervisor': 'mswdo_approver',
-  approver: 'mswdo_approver',
+  super_admin: 'admin',
+  'super admin': 'admin',
+  admin: 'admin',
+  administrator: 'admin',
+  mswdo_approver: 'admin',
+  'mswdo approver': 'admin',
+  'mswd supervisor': 'admin',
+  mswdo_staff: 'admin',
+  mswd_staff: 'admin',
+  staff: 'admin',
+  'mswdo staff': 'admin',
+  'mswd staff': 'admin',
+  'mswd processor': 'admin',
+  approver: 'admin',
 
   barangay_secretary: 'barangay_secretary',
   barangay: 'barangay_secretary',
@@ -22,17 +20,13 @@ const ROLE_ALIASES = {
   'barangay user': 'barangay_secretary',
   'barangay secretary': 'barangay_secretary',
   'barangay staff': 'barangay_secretary',
-
-  resident: 'resident',
-  applicant: 'resident',
 };
 
+// admin: dashboard, applications, households (view-only), land_map, settings
+// barangay_secretary: dashboard, applications, households (full manage), reports, land_map
 const SECTION_ACCESS_BY_ROLE = {
-  super_admin: ['dashboard', 'applications', 'households', 'reports', 'settings'],
-  mswdo_staff: ['dashboard', 'applications', 'households', 'reports'],
-  mswdo_approver: ['dashboard', 'applications', 'reports'],
-  barangay_secretary: ['dashboard', 'applications', 'households', 'reports'],
-  resident: ['applications'],
+  admin: ['dashboard', 'applications', 'households', 'land_map', 'settings'],
+  barangay_secretary: ['dashboard', 'applications', 'households', 'reports', 'land_map'],
 };
 
 function normalizeRoleSource(value) {
@@ -81,29 +75,34 @@ export function getDefaultPathForRole(session, sections = []) {
 }
 
 export function canManagePortalUsers(session) {
-  return resolveSessionRoleKey(session) === 'super_admin';
+  return resolveSessionRoleKey(session) === 'admin';
 }
 
 export function canManagePrograms(session) {
-  return resolveSessionRoleKey(session) === 'super_admin';
+  return resolveSessionRoleKey(session) === 'admin';
+}
+
+export function canViewHouseholds(session) {
+  const roleKey = resolveSessionRoleKey(session);
+  return roleKey === 'admin' || roleKey === 'barangay_secretary';
 }
 
 export function canManageHouseholds(session) {
   const roleKey = resolveSessionRoleKey(session);
-  return ['super_admin', 'mswdo_staff', 'barangay_secretary'].includes(roleKey);
+  return roleKey === 'barangay_secretary';
 }
 
 export function canCreateApplications(session) {
   const roleKey = resolveSessionRoleKey(session);
-  return ['super_admin', 'mswdo_staff', 'barangay_secretary', 'resident'].includes(roleKey);
+  return roleKey === 'barangay_secretary';
 }
 
 export function canApproveApplications(session) {
   const roleKey = resolveSessionRoleKey(session);
-  return roleKey === 'super_admin';
+  return roleKey === 'admin';
 }
 
 export function canViewUploadedDocuments(session) {
   const roleKey = resolveSessionRoleKey(session);
-  return ['super_admin', 'mswdo_staff'].includes(roleKey);
+  return ['admin', 'barangay_secretary'].includes(roleKey);
 }

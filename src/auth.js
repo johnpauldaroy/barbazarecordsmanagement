@@ -11,7 +11,9 @@ export const demoCredentials = {
 const demoSession = {
   email: demoCredentials.email,
   name: 'Ana B. Ramos',
-  role: 'MSWD Processor',
+  role: 'Barangay Secretary',
+  roleKey: 'barangay_secretary',
+  barangayName: 'Mayha',
 };
 
 export const isSupabaseEnabled = hasSupabaseConfig;
@@ -37,8 +39,8 @@ async function resolveSessionUser(user) {
 
   const metadataName = user.user_metadata?.full_name ?? user.user_metadata?.name;
   const metadataRole = user.user_metadata?.role ?? user.app_metadata?.role;
-  let profileName = metadataName || formatDisplayName(user.email) || 'MSWD User';
-  let role = metadataRole || 'MSWD Staff';
+  let profileName = metadataName || formatDisplayName(user.email) || 'Portal User';
+  let role = metadataRole || 'Barangay Secretary';
   let roleKey = normalizeRoleKey(metadataRole);
   let barangayId = null;
   let barangayName = null;

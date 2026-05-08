@@ -5,7 +5,12 @@ import {
   supabaseUrl,
   supabasePublishableKey,
 } from './supabase';
-import { resolveSessionRoleKey } from './roleAccess';
+import {
+  canApproveApplications,
+  canCreateApplications,
+  canManageHouseholds,
+  resolveSessionRoleKey,
+} from './roleAccess';
 import * as demoData from './systemData';
 
 const USE_DEMO = process.env.NODE_ENV === 'test';
@@ -16,6 +21,31 @@ let sessionContext = null;
 
 function getSessionContext() {
   return sessionContext;
+}
+
+function assertHouseholdReadAccess() {
+  const roleKey = resolveSessionRoleKey(getSessionContext());
+  if (roleKey !== 'admin' && roleKey !== 'barangay_secretary') {
+    throw new Error('You do not have access to household records.');
+  }
+}
+
+function assertHouseholdManagementAccess() {
+  if (!canManageHouseholds(getSessionContext())) {
+    throw new Error('Only barangay secretaries can add, edit, or delete household records.');
+  }
+}
+
+function assertApplicationCreationAccess() {
+  if (!canCreateApplications(getSessionContext())) {
+    throw new Error('Only barangay secretaries can create assistance applications.');
+  }
+}
+
+function assertApplicationApprovalAccess() {
+  if (!canApproveApplications(getSessionContext())) {
+    throw new Error('Only admin accounts can approve or reject applications.');
+  }
 }
 
 function getScopedBarangayScope() {
@@ -801,6 +831,97 @@ function buildDemoHouseholdDetails(code, row) {
   };
 }
 
+function normalizeCoordinate(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function deterministicCoordinateOffset(seedText, amplitude = 0.018) {
+  const seed = String(seedText ?? '');
+  const codePointTotal = [...seed].reduce((total, character) => total + character.charCodeAt(0), 0);
+  const normalized = ((codePointTotal % 2000) / 1000) - 1;
+  return normalized * amplitude;
+}
+
+function getDemoBarangayCoordinate(name) {
+  const presets = {
+    poblacion: { latitude: 11.1959, longitude: 122.0389 },
+    mayha: { latitude: 11.2318, longitude: 122.0836 },
+    badiangan: { latitude: 11.2024, longitude: 122.0565 },
+    alojipan: { latitude: 11.1713, longitude: 122.0238 },
+    torocadan: { latitude: 11.2134, longitude: 122.0684 },
+  };
+
+  return presets[normalizeText(name)] ?? { latitude: 11.1959, longitude: 122.0389 };
+}
+
+function normalizeProgramDisplayName(programRow = {}) {
+  return programRow?.name || programRow?.code || 'Other social program';
+}
+
+function buildDemoHouseholdProgramMapRows() {
+  const scope = getScopedBarangayScope();
+  if (scope.isScopedRole) {
+    assertBarangayScopeForRead();
+  }
+
+  const programsByHouseholdCode = new Map();
+
+  for (const detail of Object.values(demoData.applicationCaseDetails ?? {})) {
+    const householdCode = detail?.household;
+    const programName = detail?.program;
+
+    if (!householdCode || !programName) {
+      continue;
+    }
+
+    const bucket = programsByHouseholdCode.get(householdCode) ?? new Set();
+    bucket.add(programName);
+    programsByHouseholdCode.set(householdCode, bucket);
+  }
+
+  const scopedHouseholdRows = filterRowsByScopedBarangay(
+    demoData.householdRows ?? [],
+    (household) => household?.barangay
+  );
+
+  const rows = scopedHouseholdRows.map((household) => {
+    const baseCoordinate = getDemoBarangayCoordinate(household.barangay);
+    const latitude = baseCoordinate.latitude + deterministicCoordinateOffset(`${household.code}-lat`);
+    const longitude = baseCoordinate.longitude + deterministicCoordinateOffset(`${household.code}-lng`);
+    const fullAddress = [
+      household.purokSitio,
+      household.addressLine1,
+      household.barangay,
+      'Barbaza',
+      'Antique',
+    ].filter(Boolean).join(', ');
+
+    return {
+      code: household.code,
+      head: household.head || household.household_name || 'Registered household',
+      barangay: household.barangay || 'Unknown barangay',
+      purokSitio: household.purokSitio || '',
+      addressLine1: household.addressLine1 || '',
+      fullAddress: fullAddress || 'Address pending update',
+      latitude,
+      longitude,
+      programs: [...(programsByHouseholdCode.get(household.code) ?? [])].sort((left, right) =>
+        left.localeCompare(right)
+      ),
+    };
+  });
+
+  return {
+    rows,
+    missingCoordinates: [],
+    scope: {
+      isScoped: Boolean(scope.isScopedRole),
+      barangayName: scope.barangayName || null,
+    },
+  };
+}
+
 async function runServiceQuery(runQuery, fallbackValue, label) {
   if (USE_DEMO) {
     return typeof fallbackValue === 'function' ? fallbackValue() : fallbackValue;
@@ -1099,6 +1220,9 @@ export const supabaseService = {
 
         const metrics = Array.isArray(data) ? data[0] : null;
         const slaBreaches = countPendingSlaBreaches(applicationRows);
+        const readyForApproval = (applicationRows ?? []).filter(
+          (application) => normalizeWorkflowStatus(application.current_status) === 'verified'
+        ).length;
 
         return [
           {
@@ -1109,8 +1233,8 @@ export const supabaseService = {
           },
           {
             label: 'Ready for approval',
-            value: String(metrics?.approved_applications ?? 0),
-            trend: 'Approved or released',
+            value: String(metrics?.ready_for_approval_applications ?? readyForApproval),
+            trend: 'Awaiting admin approval',
             tone: 'accent',
           },
           {
@@ -1307,7 +1431,7 @@ export const supabaseService = {
           throw residentResult.error;
         }
 
-        if (householdResult.error) {
+        if (householdResult.error && householdResult.error.code !== '42501') {
           throw householdResult.error;
         }
 
@@ -1328,7 +1452,7 @@ export const supabaseService = {
         }
 
         const resident = residentResult.data;
-        const household = householdResult.data;
+        const household = householdResult.error?.code === '42501' ? null : householdResult.data;
         const programRows = programResult.data ?? [];
         const documentRows = documentResult.data ?? [];
         const historyRows = historyResult.data ?? [];
@@ -1467,6 +1591,11 @@ export const supabaseService = {
   },
 
   async transitionApplication({ reference, applicationId, status, remarks, approvedAmount, currentRecord }) {
+    const normalizedStatus = normalizeWorkflowStatus(status);
+    if (['approved', 'rejected', 'released', 'cancelled'].includes(normalizedStatus)) {
+      assertApplicationApprovalAccess();
+    }
+
     if (USE_DEMO) {
       return transitionDemoApplication({ reference, status, remarks, currentRecord });
     }
@@ -1525,6 +1654,8 @@ export const supabaseService = {
     note,
     uploadedRequirements,
   }) {
+    assertApplicationCreationAccess();
+
     if (USE_DEMO) {
       const trimmedApplicant = applicant.trim();
       const trimmedHouseholdCode = householdCode.trim().toUpperCase();
@@ -1759,6 +1890,8 @@ export const supabaseService = {
   },
 
   async getHouseholds() {
+    assertHouseholdReadAccess();
+
     return runServiceQuery(
       async () => {
         const scope = getScopedBarangayScope();
@@ -1799,30 +1932,81 @@ export const supabaseService = {
         }
 
         const householdIds = rows.map((household) => household.id).filter(Boolean);
-        const { data: applicationRows, error: applicationError } = await supabase
-          .from('applications')
-          .select('household_id')
-          .in('household_id', householdIds)
-          .is('archived_at', null)
-          .in('current_status', [...PENDING_APPLICATION_STATUSES, 'approved']);
-
-        if (applicationError) {
-          throw applicationError;
-        }
-
-        const openCaseCounts = new Map();
         const householdCodeById = new Map(
           rows.map((household) => [household.id, household.household_code])
         );
+        const [assistanceResult, applicationResult] = await Promise.all([
+          supabase
+            .from('assistance_records')
+            .select('household_id, status, assistance_type, program:social_programs(name, code)')
+            .in('household_id', householdIds)
+            .is('archived_at', null)
+            .in('status', ['approved', 'released']),
+          supabase
+            .from('applications')
+            .select(`
+              household_id,
+              current_status,
+              application_programs(
+                decision_status,
+                program:social_programs(name, code)
+              )
+            `)
+            .in('household_id', householdIds)
+            .is('archived_at', null)
+            .neq('current_status', 'draft'),
+        ]);
 
-        for (const application of applicationRows ?? []) {
+        if (assistanceResult.error) {
+          throw assistanceResult.error;
+        }
+
+        if (applicationResult.error) {
+          throw applicationResult.error;
+        }
+
+        const availedProgramsByCode = new Map();
+        for (const assistance of assistanceResult.data ?? []) {
+          const code = householdCodeById.get(assistance.household_id);
+          const programName = assistance.program?.name || assistance.program?.code || assistance.assistance_type;
+          if (code && programName) {
+            const currentPrograms = availedProgramsByCode.get(code) ?? new Set();
+            currentPrograms.add(programName);
+            availedProgramsByCode.set(code, currentPrograms);
+          }
+        }
+
+        for (const application of applicationResult.data ?? []) {
           const code = householdCodeById.get(application.household_id);
-          if (code) {
-            openCaseCounts.set(code, (openCaseCounts.get(code) ?? 0) + 1);
+          if (!code) {
+            continue;
+          }
+
+          const linkedPrograms = application.application_programs?.length
+            ? application.application_programs
+            : [null];
+
+          for (const linkedProgram of linkedPrograms) {
+            const workflowStatus = normalizeWorkflowStatus(
+              linkedProgram?.decision_status || application.current_status
+            );
+            if (['rejected', 'cancelled', 'draft'].includes(workflowStatus)) {
+              continue;
+            }
+
+            const programName = linkedProgram?.program?.name || linkedProgram?.program?.code;
+            if (!programName) {
+              continue;
+            }
+
+            const currentPrograms = availedProgramsByCode.get(code) ?? new Set();
+            currentPrograms.add(programName);
+            availedProgramsByCode.set(code, currentPrograms);
           }
         }
 
         return rows.map((household) => ({
+          availProgramsCount: (availedProgramsByCode.get(household.household_code) ?? new Set()).size,
           code: household.household_code,
           head: household.household_name || 'Registered household',
           barangay: household.barangay?.name || 'Unknown barangay',
@@ -1832,15 +2016,40 @@ export const supabaseService = {
           postalCode: household.postal_code || '',
           monthlyIncome: household.monthly_income != null ? String(household.monthly_income) : '',
           povertyLevel: household.poverty_level || '',
-          openCases: String(openCaseCounts.get(household.household_code) ?? 0),
+          openCases: '0',
+          availPrograms: [...(availedProgramsByCode.get(household.household_code) ?? [])]
+            .sort((left, right) => left.localeCompare(right))
+            .join(', ') || 'None recorded',
         }));
       },
-      demoData.householdRows,
+      () => {
+        const programsByHouseholdCode = new Map();
+        for (const detail of Object.values(demoData.applicationCaseDetails ?? {})) {
+          const householdCode = detail?.household;
+          const programName = detail?.program;
+          if (!householdCode || !programName) {
+            continue;
+          }
+          const set = programsByHouseholdCode.get(householdCode) ?? new Set();
+          set.add(programName);
+          programsByHouseholdCode.set(householdCode, set);
+        }
+
+        return (demoData.householdRows ?? []).map((household) => ({
+          availProgramsCount: (programsByHouseholdCode.get(household.code) ?? new Set()).size,
+          ...household,
+          availPrograms: [...(programsByHouseholdCode.get(household.code) ?? [])]
+            .sort((left, right) => left.localeCompare(right))
+            .join(', ') || 'None recorded',
+        }));
+      },
       'Failed to load households.'
     );
   },
 
   async getHouseholdDetails(code, row = null) {
+    assertHouseholdReadAccess();
+
     return runServiceQuery(
       async () => {
         const scope = getScopedBarangayScope();
@@ -2022,6 +2231,176 @@ export const supabaseService = {
     );
   },
 
+  async getHouseholdProgramMapData() {
+    assertHouseholdReadAccess();
+
+    return runServiceQuery(
+      async () => {
+        const scope = getScopedBarangayScope();
+        assertBarangayScopeForRead();
+
+        let householdQuery = supabase
+          .from('households')
+          .select(`
+            id,
+            household_code,
+            household_name,
+            barangay_id,
+            address_line1,
+            address_line2,
+            purok_sitio,
+            latitude,
+            longitude,
+            barangay:barangays(name)
+          `)
+          .is('archived_at', null)
+          .order('household_code', { ascending: true })
+          .limit(2000);
+
+        if (scope.isScopedRole) {
+          householdQuery = householdQuery.eq('barangay_id', scope.barangayId);
+        }
+
+        const { data: householdRows, error: householdError } = await householdQuery;
+
+        if (householdError) {
+          throw householdError;
+        }
+
+        const scopedRows = filterRowsByScopedBarangay(householdRows ?? [], (row) => row?.barangay?.name);
+        if (!scopedRows.length) {
+          return {
+            rows: [],
+            missingCoordinates: [],
+            scope: {
+              isScoped: Boolean(scope.isScopedRole),
+              barangayName: scope.barangayName || null,
+            },
+          };
+        }
+
+        const householdIds = scopedRows.map((row) => row.id).filter(Boolean);
+        const [assistanceResult, applicationResult] = await Promise.all([
+          supabase
+            .from('assistance_records')
+            .select('household_id, status, program:social_programs(code, name)')
+            .in('household_id', householdIds)
+            .is('archived_at', null)
+            .in('status', ['approved', 'released']),
+          supabase
+            .from('applications')
+            .select(`
+              household_id,
+              current_status,
+              application_programs(
+                decision_status,
+                program:social_programs(code, name)
+              )
+            `)
+            .in('household_id', householdIds)
+            .is('archived_at', null)
+            .in('current_status', ['approved', 'released']),
+        ]);
+
+        if (assistanceResult.error) {
+          throw assistanceResult.error;
+        }
+
+        if (applicationResult.error) {
+          throw applicationResult.error;
+        }
+
+        const programsByHouseholdId = new Map();
+
+        for (const record of assistanceResult.data ?? []) {
+          const householdId = record.household_id;
+          const programName = normalizeProgramDisplayName(record.program);
+          if (!householdId || !programName) {
+            continue;
+          }
+
+          const bucket = programsByHouseholdId.get(householdId) ?? new Set();
+          bucket.add(programName);
+          programsByHouseholdId.set(householdId, bucket);
+        }
+
+        for (const application of applicationResult.data ?? []) {
+          const householdId = application.household_id;
+          if (!householdId) {
+            continue;
+          }
+
+          const programs = application.application_programs ?? [];
+          if (!programs.length) {
+            continue;
+          }
+
+          const bucket = programsByHouseholdId.get(householdId) ?? new Set();
+          for (const programRow of programs) {
+            const decisionStatus = normalizeWorkflowStatus(programRow?.decision_status || application.current_status);
+            if (!['approved', 'released'].includes(decisionStatus)) {
+              continue;
+            }
+
+            bucket.add(normalizeProgramDisplayName(programRow?.program));
+          }
+          programsByHouseholdId.set(householdId, bucket);
+        }
+
+        const rows = [];
+        const missingCoordinates = [];
+
+        for (const household of scopedRows) {
+          const latitude = normalizeCoordinate(household.latitude);
+          const longitude = normalizeCoordinate(household.longitude);
+          const programs = [...(programsByHouseholdId.get(household.id) ?? [])].sort((left, right) =>
+            left.localeCompare(right)
+          );
+          const fullAddress = [
+            household.purok_sitio,
+            household.address_line1,
+            household.address_line2,
+            household.barangay?.name,
+            'Barbaza',
+            'Antique',
+          ].filter(Boolean).join(', ');
+
+          const normalizedRow = {
+            code: household.household_code,
+            head: household.household_name || 'Registered household',
+            barangay: household.barangay?.name || 'Unknown barangay',
+            purokSitio: household.purok_sitio || '',
+            addressLine1: household.address_line1 || '',
+            fullAddress: fullAddress || 'Address pending update',
+            programs,
+          };
+
+          if (latitude == null || longitude == null) {
+            missingCoordinates.push(normalizedRow);
+            continue;
+          }
+
+          rows.push({
+            ...normalizedRow,
+            latitude,
+            longitude,
+          });
+        }
+
+        return {
+          rows,
+          missingCoordinates,
+          scope: {
+            isScoped: Boolean(scope.isScopedRole),
+            barangayName: scope.barangayName || null,
+          },
+        };
+      },
+      () => buildDemoHouseholdProgramMapRows(),
+      'Failed to load household map data.'
+    );
+  },
+
   async createHousehold({
     code,
     head,
@@ -2033,6 +2412,8 @@ export const supabaseService = {
     monthlyIncome,
     povertyLevel,
   }) {
+    assertHouseholdManagementAccess();
+
     if (USE_DEMO) {
       return {
         code: code.trim().toUpperCase(),
@@ -2045,6 +2426,8 @@ export const supabaseService = {
         monthlyIncome: monthlyIncome?.trim() || '',
         povertyLevel: povertyLevel?.trim() || '',
         openCases: '0',
+        availProgramsCount: 0,
+        availPrograms: 'None recorded',
       };
     }
 
@@ -2097,6 +2480,8 @@ export const supabaseService = {
       monthlyIncome: monthlyIncome?.trim() || '',
       povertyLevel: povertyLevel?.trim() || '',
       openCases: '0',
+      availProgramsCount: 0,
+      availPrograms: 'None recorded',
     };
   },
 
@@ -2111,6 +2496,8 @@ export const supabaseService = {
     monthlyIncome,
     povertyLevel,
   }) {
+    assertHouseholdManagementAccess();
+
     if (USE_DEMO) {
       return {
         code: code.trim().toUpperCase(),
@@ -2123,6 +2510,8 @@ export const supabaseService = {
         monthlyIncome: monthlyIncome?.trim() || '',
         povertyLevel: povertyLevel?.trim() || '',
         openCases: '0',
+        availProgramsCount: 0,
+        availPrograms: 'None recorded',
       };
     }
 
@@ -2181,10 +2570,14 @@ export const supabaseService = {
       monthlyIncome: monthlyIncome?.trim() || '',
       povertyLevel: povertyLevel?.trim() || '',
       openCases: '0',
+      availProgramsCount: 0,
+      availPrograms: 'None recorded',
     };
   },
 
   async deleteHousehold(code) {
+    assertHouseholdManagementAccess();
+
     if (USE_DEMO) {
       return { success: true };
     }
@@ -2381,6 +2774,89 @@ export const supabaseService = {
     );
   },
 
+  async getHouseholdAnalytics() {
+    return runServiceQuery(
+      async () => {
+        const scope = getScopedBarangayScope();
+        assertBarangayScopeForRead();
+
+        let householdsQuery = supabase
+          .from('households')
+          .select('id, household_code, barangay_id, household_size, monthly_income, barangay:barangays(name)')
+          .is('archived_at', null);
+
+        if (scope.isScopedRole) {
+          householdsQuery = householdsQuery.eq('barangay_id', scope.barangayId);
+        }
+
+        const { data, error } = await householdsQuery;
+
+        if (error) {
+          throw error;
+        }
+
+        const rows = filterRowsByScopedBarangay(data ?? [], (row) => row?.barangay?.name);
+        const totalHouseholds = rows.length;
+        const totalResidents = rows.reduce((sum, row) => sum + Number(row.household_size ?? 1), 0);
+
+        const tierCounts = { no_income: 0, low_income: 0, moderate: 0, above_moderate: 0 };
+        const barangayLowIncome = {};
+
+        for (const row of rows) {
+          const income = Number(row.monthly_income ?? 0);
+          const barangay = row.barangay?.name || 'Unknown';
+          let tierKey;
+          if (income === 0) tierKey = 'no_income';
+          else if (income < 10000) tierKey = 'low_income';
+          else if (income < 20000) tierKey = 'moderate';
+          else tierKey = 'above_moderate';
+
+          tierCounts[tierKey] = (tierCounts[tierKey] ?? 0) + 1;
+
+          if (tierKey === 'no_income' || tierKey === 'low_income') {
+            if (!barangayLowIncome[barangay]) {
+              barangayLowIncome[barangay] = { barangay, noIncome: 0, lowIncome: 0, total: 0 };
+            }
+            if (tierKey === 'no_income') barangayLowIncome[barangay].noIncome += 1;
+            else barangayLowIncome[barangay].lowIncome += 1;
+            barangayLowIncome[barangay].total += 1;
+          }
+        }
+
+        const tupadPriority = tierCounts.no_income + tierCounts.low_income;
+        const total = totalHouseholds || 1;
+
+        const classificationBreakdown = [
+          { key: 'no_income',      label: 'No Income / No Work', count: tierCounts.no_income,     percentage: Math.round((tierCounts.no_income     / total) * 100) },
+          { key: 'low_income',     label: 'Low Income',           count: tierCounts.low_income,    percentage: Math.round((tierCounts.low_income    / total) * 100) },
+          { key: 'moderate',       label: 'Moderate Income',      count: tierCounts.moderate,      percentage: Math.round((tierCounts.moderate      / total) * 100) },
+          { key: 'above_moderate', label: 'Above Moderate',       count: tierCounts.above_moderate, percentage: Math.round((tierCounts.above_moderate / total) * 100) },
+        ];
+
+        const lowIncomeByBarangay = Object.values(barangayLowIncome)
+          .sort((a, b) => b.total - a.total)
+          .slice(0, 10);
+
+        return {
+          summary: {
+            totalResidents,
+            totalHouseholds,
+            tupadPriorityHouseholds: tupadPriority,
+            indigentHouseholds: tierCounts.no_income,
+          },
+          classificationBreakdown,
+          lowIncomeByBarangay,
+        };
+      },
+      {
+        summary: demoData.householdRegistrySummary,
+        classificationBreakdown: demoData.incomeClassificationBreakdown,
+        lowIncomeByBarangay: demoData.lowIncomeByBarangay,
+      },
+      'Failed to load household analytics.'
+    );
+  },
+
   calculateAge(dateStr) {
     const diff = Date.now() - new Date(dateStr).getTime();
     const hours = Math.max(0, Math.floor(diff / (1000 * 60 * 60)));
@@ -2390,6 +2866,59 @@ export const supabaseService = {
     }
 
     return `${Math.floor(hours / 24)}d`;
+  },
+
+  async getApplicationsByProgram() {
+    return runServiceQuery(
+      async () => {
+        const scope = getScopedBarangayScope();
+        assertBarangayScopeForRead();
+
+        // applications → application_programs (junction) → social_programs
+        const { data, error } = await supabase
+          .from('application_programs')
+          .select(`
+            decision_status,
+            program:social_programs(name, code),
+            application:applications!inner(current_status, barangay_id, archived_at, barangay:barangays(name))
+          `);
+
+        if (error) {
+          throw error;
+        }
+
+        const rows = (data ?? []).filter((row) => !row.application?.archived_at);
+
+        const scopedRows = scope.isScopedRole
+          ? rows.filter((row) => {
+              const name = row.application?.barangay?.name ?? '';
+              return normalizeText(name) === normalizeText(scope.barangayName ?? '');
+            })
+          : rows;
+
+        const programMap = {};
+
+        for (const row of scopedRows) {
+          const programName = row.program?.name || row.program?.code || 'Other';
+          if (!programMap[programName]) {
+            programMap[programName] = { program: programName, total: 0, pending: 0, approved: 0, released: 0 };
+          }
+          programMap[programName].total += 1;
+          const status = normalizeWorkflowStatus(row.decision_status || row.application?.current_status);
+          if (['submitted', 'under_review', 'needs_more_info', 'verified'].includes(status)) {
+            programMap[programName].pending += 1;
+          } else if (status === 'approved') {
+            programMap[programName].approved += 1;
+          } else if (status === 'released') {
+            programMap[programName].released += 1;
+          }
+        }
+
+        return Object.values(programMap).sort((a, b) => b.total - a.total);
+      },
+      demoData.applicationsByProgram,
+      'Failed to load applications by program.'
+    );
   },
 
   async getBarangays() {
@@ -2903,6 +3432,7 @@ export const supabaseService = {
               household_name,
               purok_sitio,
               address_line1,
+              monthly_income,
               barangay:barangays(name)
             )
           `)
@@ -2950,6 +3480,7 @@ export const supabaseService = {
             householdCode: household?.household_code || '',
             barangay: household?.barangay?.name || '',
             address: address,
+            monthlyIncome: household?.monthly_income ?? '',
           };
         });
       },
@@ -2965,6 +3496,7 @@ export const supabaseService = {
           householdCode: r.code,
           barangay: r.barangay,
           address: `Purok 3, ${r.barangay}, Barbaza`,
+          monthlyIncome: r.headMonthlyIncome ?? r.monthlyIncome ?? '',
         }));
       },
       'Failed to search residents.'
@@ -2988,6 +3520,7 @@ export const supabaseService = {
             barangay_id,
             purok_sitio,
             address_line1,
+            monthly_income,
             barangay:barangays(name)
           `)
           .ilike('household_code', `%${query}%`)
@@ -3017,6 +3550,7 @@ export const supabaseService = {
             householdCode: household.household_code,
             barangay: household.barangay?.name || '',
             address: address || 'No address on file',
+            monthlyIncome: household.monthly_income ?? '',
           };
         });
       },
@@ -3032,6 +3566,7 @@ export const supabaseService = {
           householdCode: r.code,
           barangay: r.barangay,
           address: `Purok 3, ${r.barangay}, Barbaza`,
+          monthlyIncome: r.headMonthlyIncome ?? r.monthlyIncome ?? '',
         }));
       },
       'Failed to search households.'
