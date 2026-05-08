@@ -23,9 +23,18 @@ const CHART_DRILLDOWNS = {
 // â”€â”€â”€ sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function RegistryKpiCard({ label, value, sub, tone, href }) {
+  const normalizedValue = (() => {
+    if (value == null) return '0';
+    const text = String(value).trim();
+    if (!text) return '0';
+    if (text === '-' || text === '—') return '0';
+    if (text.includes('Ã¢â‚¬') || text.includes('â€”') || text.includes('Ã')) return '0';
+    return text;
+  })();
+
   const inner = (
     <div className={`dashboard-registry-card dashboard-registry-card--${tone || 'default'}`}>
-      <strong className="dashboard-registry-card__value">{value}</strong>
+      <strong className="dashboard-registry-card__value">{normalizedValue}</strong>
       <span className="dashboard-registry-card__label">{label}</span>
       {sub && <small className="dashboard-registry-card__sub">{sub}</small>}
     </div>
