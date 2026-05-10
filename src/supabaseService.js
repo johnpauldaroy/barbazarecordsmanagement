@@ -11,12 +11,16 @@ import {
   canManageHouseholds,
   resolveSessionRoleKey,
 } from './roleAccess';
+import { classifyIncome } from './incomeClassification';
 import * as demoData from './systemData';
 
 const USE_DEMO = process.env.NODE_ENV === 'test';
 const PENDING_APPLICATION_STATUSES = ['submitted', 'under_review', 'needs_more_info', 'verified'];
 const APPROVED_APPLICATION_STATUSES = ['approved', 'released'];
 const SLA_HOURS = 48;
+const FOUR_PS_CHILD_MIN_AGE = 5;
+const FOUR_PS_CHILD_MAX_AGE = 18;
+const FOUR_PS_MIN_QUALIFYING_CHILDREN = 2;
 let sessionContext = null;
 
 function getSessionContext() {
@@ -146,6 +150,58 @@ function normalizeFamilyMembers(value) {
       occupation: String(member.occupation ?? '').trim(),
       monthlyIncome: String(member.monthlyIncome ?? '').trim(),
     }));
+}
+
+function computeAgeFromDate(dateValue, referenceDate = new Date()) {
+  if (!dateValue) return null;
+  const birth = new Date(dateValue);
+  if (Number.isNaN(birth.getTime())) return null;
+
+  let age = referenceDate.getFullYear() - birth.getFullYear();
+  const monthDelta = referenceDate.getMonth() - birth.getMonth();
+  if (monthDelta < 0 || (monthDelta === 0 && referenceDate.getDate() < birth.getDate())) {
+    age -= 1;
+  }
+
+  return age >= 0 ? age : null;
+}
+
+function isChildRelationship(value) {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (!normalized) return false;
+  return /(child|son|daughter|anak)/i.test(normalized);
+}
+
+function countQualifyingChildrenForFourPs(familyMembers = []) {
+  return normalizeFamilyMembers(familyMembers).reduce((count, member) => {
+    const age = computeAgeFromDate(member.dateOfBirth);
+    if (age == null || age < FOUR_PS_CHILD_MIN_AGE || age > FOUR_PS_CHILD_MAX_AGE) {
+      return count;
+    }
+
+    if (!member.relationship || isChildRelationship(member.relationship)) {
+      return count + 1;
+    }
+
+    return count;
+  }, 0);
+}
+
+function evaluateFourPsQualification({
+  headMonthlyIncome,
+  monthlyIncome,
+  familyMembers,
+}) {
+  const incomeTier = classifyIncome(headMonthlyIncome ?? monthlyIncome ?? 0);
+  const isLowIncomeHead = incomeTier.key === 'no_income' || incomeTier.key === 'low_income';
+  const qualifyingChildrenCount = countQualifyingChildrenForFourPs(familyMembers);
+  const isQualified = isLowIncomeHead && qualifyingChildrenCount >= FOUR_PS_MIN_QUALIFYING_CHILDREN;
+
+  return {
+    isQualified,
+    qualifyingChildrenCount,
+    isLowIncomeHead,
+  };
 }
 
 function buildLumonFields({
@@ -959,6 +1015,16 @@ function buildDemoHouseholdProgramMapRows() {
       'Antique',
     ].filter(Boolean).join(', ');
 
+    const fourPs = evaluateFourPsQualification({
+      headMonthlyIncome: household.headMonthlyIncome,
+      monthlyIncome: household.monthlyIncome,
+      familyMembers: household.familyMembers,
+    });
+    const programSet = new Set(programsByHouseholdCode.get(household.code) ?? []);
+    if (fourPs.isQualified) {
+      programSet.add('4Ps (Qualified)');
+    }
+
     return {
       code: household.code,
       head: household.head || household.household_name || 'Registered household',
@@ -968,7 +1034,7 @@ function buildDemoHouseholdProgramMapRows() {
       fullAddress: fullAddress || 'Address pending update',
       latitude,
       longitude,
-      programs: [...(programsByHouseholdCode.get(household.code) ?? [])].sort((left, right) =>
+      programs: [...programSet].sort((left, right) =>
         left.localeCompare(right)
       ),
     };
@@ -2087,8 +2153,20 @@ export const supabaseService = {
           }
         }
 
-        return rows.map((household) => ({
-          availProgramsCount: (availedProgramsByCode.get(household.household_code) ?? new Set()).size,
+        return rows.map((household) => {
+          const familyMembers = normalizeFamilyMembers(household.family_members);
+          const fourPs = evaluateFourPsQualification({
+            headMonthlyIncome: household.head_monthly_income,
+            monthlyIncome: household.monthly_income,
+            familyMembers,
+          });
+          const programSet = new Set(availedProgramsByCode.get(household.household_code) ?? []);
+          if (fourPs.isQualified) {
+            programSet.add('4Ps (Qualified)');
+          }
+
+          return {
+          availProgramsCount: programSet.size,
           code: household.household_code,
           head: household.household_name || 'Registered household',
           barangay: household.barangay?.name || 'Unknown barangay',
@@ -2113,7 +2191,9 @@ export const supabaseService = {
           headMonthlyIncome: household.head_monthly_income != null
             ? String(household.head_monthly_income)
             : (household.monthly_income != null ? String(household.monthly_income) : ''),
-          familyMembers: normalizeFamilyMembers(household.family_members),
+          familyMembers,
+          isFourPsQualified: fourPs.isQualified,
+          fourPsQualifyingChildren: fourPs.qualifyingChildrenCount,
           povertyLevel: household.poverty_level || '',
           isLumon: Boolean(household.is_lumon),
           lumonFamilyCount: String(household.lumon_family_count ?? 1),
@@ -2121,10 +2201,11 @@ export const supabaseService = {
           lumonMemberKeys: normalizeJsonStringArray(household.lumon_member_keys),
           lumonMemberNames: normalizeJsonStringArray(household.lumon_member_names),
           openCases: '0',
-          availPrograms: [...(availedProgramsByCode.get(household.household_code) ?? [])]
+          availPrograms: [...programSet]
             .sort((left, right) => left.localeCompare(right))
             .join(', ') || 'None recorded',
-        }));
+          };
+        });
       },
       () => {
         const programsByHouseholdCode = new Map();
@@ -2139,16 +2220,31 @@ export const supabaseService = {
           programsByHouseholdCode.set(householdCode, set);
         }
 
-        return (demoData.householdRows ?? []).map((household) => ({
-          availProgramsCount: (programsByHouseholdCode.get(household.code) ?? new Set()).size,
+        return (demoData.householdRows ?? []).map((household) => {
+          const familyMembers = normalizeFamilyMembers(household.familyMembers);
+          const fourPs = evaluateFourPsQualification({
+            headMonthlyIncome: household.headMonthlyIncome,
+            monthlyIncome: household.monthlyIncome,
+            familyMembers,
+          });
+          const programSet = new Set(programsByHouseholdCode.get(household.code) ?? []);
+          if (fourPs.isQualified) {
+            programSet.add('4Ps (Qualified)');
+          }
+
+          return {
+          availProgramsCount: programSet.size,
           ...household,
-          familyMembers: normalizeFamilyMembers(household.familyMembers),
+          familyMembers,
+          isFourPsQualified: fourPs.isQualified,
+          fourPsQualifyingChildren: fourPs.qualifyingChildrenCount,
           lumonMemberKeys: normalizeJsonStringArray(household.lumonMemberKeys),
           lumonMemberNames: normalizeJsonStringArray(household.lumonMemberNames),
-          availPrograms: [...(programsByHouseholdCode.get(household.code) ?? [])]
+          availPrograms: [...programSet]
             .sort((left, right) => left.localeCompare(right))
             .join(', ') || 'None recorded',
-        }));
+          };
+        });
       },
       'Failed to load households.'
     );
@@ -2380,6 +2476,11 @@ export const supabaseService = {
           }));
         const storedFamilyMembers = normalizeFamilyMembers(household.family_members);
         const familyMembers = residentFamilyMembers.length > 0 ? residentFamilyMembers : storedFamilyMembers;
+        const fourPs = evaluateFourPsQualification({
+          headMonthlyIncome: headResident?.monthly_income ?? household.head_monthly_income,
+          monthlyIncome: household.monthly_income,
+          familyMembers,
+        });
         const lumonMemberKeys = normalizeJsonStringArray(household.lumon_member_keys);
         const lumonMemberNames = normalizeJsonStringArray(household.lumon_member_names);
 
@@ -2412,6 +2513,8 @@ export const supabaseService = {
                 ? String(household.head_monthly_income)
                 : (household.monthly_income != null ? String(household.monthly_income) : '')),
             familyMembers,
+            isFourPsQualified: fourPs.isQualified,
+            fourPsQualifyingChildren: fourPs.qualifyingChildrenCount,
             totalMembers: Number(household.household_size ?? (1 + familyMembers.length)),
             openCases,
             isLumon: Boolean(household.is_lumon),
@@ -2462,6 +2565,9 @@ export const supabaseService = {
             purok_sitio,
             latitude,
             longitude,
+            monthly_income,
+            head_monthly_income,
+            family_members,
             barangay:barangays(name)
           `)
           .is('archived_at', null)
@@ -2564,7 +2670,16 @@ export const supabaseService = {
         for (const household of scopedRows) {
           const latitude = normalizeCoordinate(household.latitude);
           const longitude = normalizeCoordinate(household.longitude);
-          const programs = [...(programsByHouseholdId.get(household.id) ?? [])].sort((left, right) =>
+          const fourPs = evaluateFourPsQualification({
+            headMonthlyIncome: household.head_monthly_income,
+            monthlyIncome: household.monthly_income,
+            familyMembers: household.family_members,
+          });
+          const programSet = new Set(programsByHouseholdId.get(household.id) ?? []);
+          if (fourPs.isQualified) {
+            programSet.add('4Ps (Qualified)');
+          }
+          const programs = [...programSet].sort((left, right) =>
             left.localeCompare(right)
           );
           const fullAddress = [
@@ -2644,8 +2759,18 @@ export const supabaseService = {
     lumonMemberNames,
   }) {
     assertHouseholdManagementAccess();
+    const normalizedFamilyMembers = normalizeFamilyMembers(familyMembers);
+    const fourPs = evaluateFourPsQualification({
+      headMonthlyIncome,
+      monthlyIncome,
+      familyMembers: normalizedFamilyMembers,
+    });
 
     if (USE_DEMO) {
+      const programSet = new Set();
+      if (fourPs.isQualified) {
+        programSet.add('4Ps (Qualified)');
+      }
       return {
         code: code.trim().toUpperCase(),
         head: head.trim(),
@@ -2670,15 +2795,17 @@ export const supabaseService = {
         headSchoolBackground: headSchoolBackground?.trim() || '',
         headOccupation: headOccupation?.trim() || '',
         headMonthlyIncome: headMonthlyIncome?.trim() || '',
-        familyMembers: normalizeFamilyMembers(familyMembers),
+        familyMembers: normalizedFamilyMembers,
+        isFourPsQualified: fourPs.isQualified,
+        fourPsQualifyingChildren: fourPs.qualifyingChildrenCount,
         isLumon: Boolean(isLumon),
         lumonFamilyCount: String(lumonFamilyCount ?? 1),
         lumonDescription: lumonDescription?.trim() || '',
         lumonMemberKeys: normalizeJsonStringArray(lumonMemberKeys),
         lumonMemberNames: normalizeJsonStringArray(lumonMemberNames),
         openCases: '0',
-        availProgramsCount: 0,
-        availPrograms: 'None recorded',
+        availProgramsCount: programSet.size,
+        availPrograms: [...programSet].sort((left, right) => left.localeCompare(right)).join(', ') || 'None recorded',
       };
     }
 
@@ -2735,7 +2862,7 @@ export const supabaseService = {
         head_school_background: headSchoolBackground?.trim() || null,
         head_occupation: headOccupation?.trim() || null,
         head_monthly_income: headMonthlyIncome ? Number(headMonthlyIncome) : null,
-        family_members: normalizeFamilyMembers(familyMembers),
+        family_members: normalizedFamilyMembers,
         poverty_level: povertyLevel?.trim() || null,
         ...lumonFields,
       });
@@ -2769,7 +2896,9 @@ export const supabaseService = {
       headSchoolBackground: headSchoolBackground?.trim() || '',
       headOccupation: headOccupation?.trim() || '',
       headMonthlyIncome: headMonthlyIncome?.trim() || '',
-      familyMembers: normalizeFamilyMembers(familyMembers),
+      familyMembers: normalizedFamilyMembers,
+      isFourPsQualified: fourPs.isQualified,
+      fourPsQualifyingChildren: fourPs.qualifyingChildrenCount,
       isLumon: lumonFields.is_lumon,
       lumonFamilyCount: String(lumonFields.lumon_family_count),
       lumonDescription: lumonFields.lumon_description || '',
@@ -2813,8 +2942,18 @@ export const supabaseService = {
     lumonMemberNames,
   }) {
     assertHouseholdManagementAccess();
+    const normalizedFamilyMembers = normalizeFamilyMembers(familyMembers);
+    const fourPs = evaluateFourPsQualification({
+      headMonthlyIncome,
+      monthlyIncome,
+      familyMembers: normalizedFamilyMembers,
+    });
 
     if (USE_DEMO) {
+      const programSet = new Set();
+      if (fourPs.isQualified) {
+        programSet.add('4Ps (Qualified)');
+      }
       return {
         code: code.trim().toUpperCase(),
         head: head.trim(),
@@ -2839,15 +2978,17 @@ export const supabaseService = {
         headSchoolBackground: headSchoolBackground?.trim() || '',
         headOccupation: headOccupation?.trim() || '',
         headMonthlyIncome: headMonthlyIncome?.trim() || '',
-        familyMembers: normalizeFamilyMembers(familyMembers),
+        familyMembers: normalizedFamilyMembers,
+        isFourPsQualified: fourPs.isQualified,
+        fourPsQualifyingChildren: fourPs.qualifyingChildrenCount,
         isLumon: Boolean(isLumon),
         lumonFamilyCount: String(lumonFamilyCount ?? 1),
         lumonDescription: lumonDescription?.trim() || '',
         lumonMemberKeys: normalizeJsonStringArray(lumonMemberKeys),
         lumonMemberNames: normalizeJsonStringArray(lumonMemberNames),
         openCases: '0',
-        availProgramsCount: 0,
-        availPrograms: 'None recorded',
+        availProgramsCount: programSet.size,
+        availPrograms: [...programSet].sort((left, right) => left.localeCompare(right)).join(', ') || 'None recorded',
       };
     }
 
@@ -2902,7 +3043,7 @@ export const supabaseService = {
         head_school_background: headSchoolBackground?.trim() || null,
         head_occupation: headOccupation?.trim() || null,
         head_monthly_income: headMonthlyIncome ? Number(headMonthlyIncome) : null,
-        family_members: normalizeFamilyMembers(familyMembers),
+        family_members: normalizedFamilyMembers,
         poverty_level: povertyLevel?.trim() || null,
         ...lumonFields,
       })
@@ -2944,7 +3085,9 @@ export const supabaseService = {
       headSchoolBackground: headSchoolBackground?.trim() || '',
       headOccupation: headOccupation?.trim() || '',
       headMonthlyIncome: headMonthlyIncome?.trim() || '',
-      familyMembers: normalizeFamilyMembers(familyMembers),
+      familyMembers: normalizedFamilyMembers,
+      isFourPsQualified: fourPs.isQualified,
+      fourPsQualifyingChildren: fourPs.qualifyingChildrenCount,
       isLumon: lumonFields.is_lumon,
       lumonFamilyCount: String(lumonFields.lumon_family_count),
       lumonDescription: lumonFields.lumon_description || '',

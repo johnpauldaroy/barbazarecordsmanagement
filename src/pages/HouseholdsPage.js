@@ -25,12 +25,25 @@ function IncomeBadge({ monthlyIncome }) {
   );
 }
 
-function getIncomeClassificationLabel(monthlyIncome) {
+function getIncomeClassificationLabel(monthlyIncome, fourPs = null) {
   const tier = classifyIncome(monthlyIncome);
+  const parts = [];
   if (tier.tupadPriority) {
-    return `${tier.label} - Recommended for TUPAD`;
+    parts.push(`${tier.label} - Recommended for TUPAD`);
+  } else {
+    parts.push(tier.label);
   }
-  return tier.label;
+
+  if (fourPs?.isQualified) {
+    const childCount = Number(fourPs.qualifyingChildrenCount ?? 0);
+    parts.push(
+      childCount > 0
+        ? `Qualified for 4Ps (${childCount} child${childCount > 1 ? 'ren' : ''}, ages 5-18)`
+        : 'Qualified for 4Ps'
+    );
+  }
+
+  return parts.join(' · ');
 }
 
 // Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ helpers Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬
@@ -757,6 +770,12 @@ function HouseholdProfileModal({ household, details, onClose }) {
               <span className="hh-profile-field__label">Income classification</span>
               <IncomeBadge monthlyIncome={h.headMonthlyIncome ?? 0} />
             </div>
+            {h.isFourPsQualified ? (
+              <ProfileField
+                label="4Ps basis"
+                value={`Qualified (${h.fourPsQualifyingChildren || 0} child${Number(h.fourPsQualifyingChildren || 0) > 1 ? 'ren' : ''}, ages 5-18)`}
+              />
+            ) : null}
             <ProfileField label="School / studying" value={h.headSchoolBackground} />
             <ProfileField label="Address" value={[h.purokSitio, h.addressLine1, h.barangay].filter(Boolean).join(', ')} />
           </div>
@@ -1337,7 +1356,10 @@ function HouseholdsPage({ session }) {
       key: 'incomeClassification',
       label: 'Income classification',
       render: (item) => {
-        const label = getIncomeClassificationLabel(item.monthlyIncome);
+        const label = getIncomeClassificationLabel(item.monthlyIncome, {
+          isQualified: item.isFourPsQualified,
+          qualifyingChildrenCount: item.fourPsQualifyingChildren,
+        });
         const isPriority = classifyIncome(item.monthlyIncome).tupadPriority;
         return (
           <span className={`hh-income-classification ${isPriority ? 'hh-income-classification--priority' : ''}`}>
@@ -1345,7 +1367,10 @@ function HouseholdsPage({ session }) {
           </span>
         );
       },
-      getSortValue: (item) => getIncomeClassificationLabel(item.monthlyIncome),
+      getSortValue: (item) => getIncomeClassificationLabel(item.monthlyIncome, {
+        isQualified: item.isFourPsQualified,
+        qualifyingChildrenCount: item.fourPsQualifyingChildren,
+      }),
     },
     {
       key: 'availPrograms',

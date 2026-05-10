@@ -20,7 +20,7 @@ const CHART_DRILLDOWNS = {
   workloadByBarangay: '#/reports?filter=barangay_workload',
 };
 
-// â”€â”€â”€ sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â"€â"€â"€ sub-components â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
 function RegistryKpiCard({ label, value, sub, tone, href }) {
   const normalizedValue = (() => {
@@ -28,7 +28,7 @@ function RegistryKpiCard({ label, value, sub, tone, href }) {
     const text = String(value).trim();
     if (!text) return '0';
     if (text === '-' || text === '—') return '0';
-    if (text.includes('Ã¢â‚¬') || text.includes('â€”') || text.includes('Ã')) return '0';
+    if (text.includes('Ã¢â‚¬') || text.includes('—') || text.includes('Ã')) return '0';
     return text;
   })();
 
@@ -64,10 +64,10 @@ function IncomeClassificationPanel({ breakdown }) {
         <div className="dashboard-tupad-highlight__number">{tupadCount}</div>
         <div className="dashboard-tupad-highlight__text">
           <strong>TUPAD priority households</strong>
-          <span>No Income + Low Income â€” {Math.round((tupadCount / total) * 100)}% of registry</span>
+          <span>No Income + Low Income &mdash; {Math.round((tupadCount / total) * 100)}% of registry</span>
         </div>
         <a href="#/households" className="dashboard-tupad-highlight__link">
-          View households â†’
+          View households &rarr;
         </a>
       </div>
 
@@ -116,7 +116,7 @@ function LowIncomeRankingPanel({ ranking }) {
       <SectionHeading
         eyebrow="Priority ranking"
         title="Low income households by barangay"
-        description="Barangays ranked by combined No Income + Low Income household count â€” TUPAD targeting priority."
+        description="Barangays ranked by combined No Income + Low Income household count - TUPAD targeting priority."
       />
       <div className="dashboard-ranking-list">
         {ranking.map((item, index) => (
@@ -157,7 +157,7 @@ function LowIncomeRankingPanel({ ranking }) {
   );
 }
 
-// â”€â”€â”€ DashboardPage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â"€â"€â"€ DashboardPage â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 
 function DashboardPage({ session }) {
   const [stats, setStats] = useState([]);
@@ -220,7 +220,7 @@ function DashboardPage({ session }) {
     return (
       <div className="workspace-page">
         <div className="page-load-spinner" role="status" aria-live="polite">
-          Loading dashboard dataâ€¦
+          Loading dashboard data...
         </div>
       </div>
     );
@@ -249,7 +249,7 @@ function DashboardPage({ session }) {
         </div>
       ) : null}
 
-      {/* â”€â”€ Registry Overview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* â"€â"€ Registry Overview â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
       {summary && (
         <section className="panel dashboard-registry-section">
           <SectionHeading eyebrow="Registry" title="Household overview" />
@@ -281,14 +281,14 @@ function DashboardPage({ session }) {
             />
             <RegistryKpiCard
               label="Active cases"
-              value={summary.householdsWithActiveCases?.toLocaleString() ?? 'â€”'}
+              value={summary.householdsWithActiveCases?.toLocaleString() ?? '—'}
               sub="Households with open applications"
               tone="neutral"
               href="#/applications"
             />
             <RegistryKpiCard
               label="Lumon households"
-              value={summary.lumonHouseholds?.toLocaleString() ?? 'â€”'}
+              value={summary.lumonHouseholds?.toLocaleString() ?? '—'}
               sub="Multiple families sharing one address"
               tone="neutral"
             />
@@ -296,17 +296,17 @@ function DashboardPage({ session }) {
         </section>
       )}
 
-      {/* â”€â”€ Income Classification + Low Income Ranking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* â"€â"€ Income Classification + Low Income Ranking â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
       <div className="dashboard-analytics-row">
         <IncomeClassificationPanel breakdown={householdAnalytics?.classificationBreakdown} />
         <LowIncomeRankingPanel ranking={householdAnalytics?.lowIncomeByBarangay} />
       </div>
 
-      {/* â”€â”€ Application Status Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* â"€â"€ Application Status Summary â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
 
-      {/* â”€â”€ Applications by Program â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* â"€â"€ Applications by Program â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
 
-      {/* â”€â”€ Application Queue KPIs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* â"€â"€ Application Queue KPIs â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
       <section className="panel dashboard-kpi-section">
         <SectionHeading title="Queue snapshot" />
         <div className="dashboard-kpi-grid">
@@ -323,10 +323,10 @@ function DashboardPage({ session }) {
         </div>
       </section>
 
-      {/* â”€â”€ Trend Charts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* â"€â"€ Trend Charts â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
       {charts ? <DashboardCharts data={charts} drilldowns={CHART_DRILLDOWNS} /> : null}
 
-      {/* â”€â”€ Priority Cases â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* â"€â"€ Priority Cases â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
       <section className="panel dashboard-priority-section">
         <SectionHeading eyebrow="Priority queue" title="Cases needing action" />
         <InteractiveTable
