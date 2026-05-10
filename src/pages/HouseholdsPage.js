@@ -638,15 +638,6 @@ function HouseholdFormModal({
                       onChange={onChange}
                     />
                   </FieldRow>
-                  <FieldRow label="Family identifiers / description" htmlFor="hh-lumon-desc" wide>
-                    <Input
-                      id="hh-lumon-desc"
-                      name="lumonDescription"
-                      value={formState.lumonDescription}
-                      onChange={onChange}
-                      placeholder="e.g. Serrano family, Cruz family, Dela Paz family"
-                    />
-                  </FieldRow>
                   <div className="household-form-grid__wide hh-lumon-members">
                     <p className="hh-lumon-members__label">Family members included in Lumon</p>
                     <p className="hh-lumon-members__hint">
