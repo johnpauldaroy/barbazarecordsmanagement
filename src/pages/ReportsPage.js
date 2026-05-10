@@ -514,7 +514,7 @@ function formatCurrencyDisplay(amount) {
 }
 
 function AssistanceTab({ data, isBarangayScoped, scopedBarangayName }) {
-  const rows = data?.rows ?? [];
+  const rows = useMemo(() => (Array.isArray(data?.rows) ? data.rows : []), [data?.rows]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [barangayFilter, setBarangayFilter] = useState('all');
