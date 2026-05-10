@@ -162,6 +162,24 @@ function App() {
     }
   }, [authReady, currentPath, session]);
 
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+
+    if (session) {
+      html.classList.add('portal-scroll-lock');
+      body.classList.add('portal-scroll-lock');
+    } else {
+      html.classList.remove('portal-scroll-lock');
+      body.classList.remove('portal-scroll-lock');
+    }
+
+    return () => {
+      html.classList.remove('portal-scroll-lock');
+      body.classList.remove('portal-scroll-lock');
+    };
+  }, [session]);
+
   const currentRoute = useMemo(
     () => {
       const resolvedPath = session && canAccessPath(session, currentPath, portalSections)

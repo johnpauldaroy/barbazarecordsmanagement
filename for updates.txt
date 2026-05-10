@@ -1,0 +1,6 @@
+dashboard - no entry for lumon card 
+households - details of all family members
+
+AICS applications - every 3 months applications
+
+Setup lumon check box in every family members

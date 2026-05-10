@@ -18,13 +18,13 @@ test('normalizes legacy roles into admin or barangay secretary', () => {
   expect(resolveSessionRoleKey({ roleKey: 'mswdo_approver' })).toBe('admin');
 });
 
-test('grants admin access to dashboard, applications, households, land map, and settings', () => {
+test('grants admin access to dashboard, applications, households, land map, reports, and settings', () => {
   expect(canAccessSection({ roleKey: 'admin' }, 'dashboard')).toBe(true);
   expect(canAccessSection({ roleKey: 'admin' }, 'applications')).toBe(true);
   expect(canAccessSection({ roleKey: 'admin' }, 'households')).toBe(true);
   expect(canAccessSection({ roleKey: 'admin' }, 'land_map')).toBe(true);
   expect(canAccessSection({ roleKey: 'admin' }, 'settings')).toBe(true);
-  expect(canAccessSection({ roleKey: 'admin' }, 'reports')).toBe(false);
+  expect(canAccessSection({ roleKey: 'admin' }, 'reports')).toBe(true);
 });
 
 test('grants barangay secretary access to dashboard, applications, households, reports, and land map', () => {

@@ -3,16 +3,18 @@ import L from 'leaflet';
 import { CircleMarker, MapContainer, Popup, TileLayer, useMap } from 'react-leaflet';
 import SectionHeading from '../components/SectionHeading';
 import { supabaseService } from '../supabaseService';
-import 'leaflet/dist/leaflet.css';
+
+// Fix webpack-broken Leaflet default marker icon paths
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: require('leaflet/dist/images/marker-icon-2x.png'),
+  iconUrl: require('leaflet/dist/images/marker-icon.png'),
+  shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
+});
 
 const BARBAZA_CENTER = [11.195867, 122.038931];
 
 const LEGEND_CONFIG = {
-  all: {
-    label: 'All households',
-    color: '#475569',
-    textColor: '#0f172a',
-  },
   fourps: {
     label: "4Ps (Pantawid) - Yellow",
     color: '#facc15',
@@ -23,21 +25,16 @@ const LEGEND_CONFIG = {
     color: '#2563eb',
     textColor: '#1e3a8a',
   },
-  other: {
-    label: 'Other social program - Green',
+  tupad: {
+    label: 'TUPAD - Green',
     color: '#16a34a',
     textColor: '#14532d',
   },
-  multiple: {
-    label: 'Multiple programs - Violet',
-    color: '#7c3aed',
-    textColor: '#4c1d95',
-  },
-  none: {
-    label: 'No availed program',
-    color: '#94a3b8',
-    textColor: '#334155',
-  },
+};
+
+const UNTAGGED_STYLE = {
+  color: '#94a3b8',
+  textColor: '#334155',
 };
 
 function normalizeProgramToken(value) {
@@ -48,26 +45,27 @@ function normalizeProgramToken(value) {
 
 function getLegendKey(programs = []) {
   if (!programs.length) {
-    return 'none';
+    return null;
   }
 
   const normalized = programs.map((program) => normalizeProgramToken(program));
   const has4Ps = normalized.some((program) => program.includes('4ps') || program.includes('pantawid'));
   const hasAics = normalized.some((program) => program.includes('aics'));
+  const hasTupad = normalized.some((program) => program.includes('tupad'));
 
   if (has4Ps) {
     return 'fourps';
   }
 
-  if (hasAics && programs.length === 1) {
+  if (hasAics) {
     return 'aics';
   }
 
-  if (programs.length > 1) {
-    return 'multiple';
+  if (hasTupad) {
+    return 'tupad';
   }
 
-  return hasAics ? 'aics' : 'other';
+  return null;
 }
 
 function MapViewport({ points }) {
@@ -93,7 +91,7 @@ function MapViewport({ points }) {
 
 function ProgramBadge({ text }) {
   const legendKey = getLegendKey([text]);
-  const meta = LEGEND_CONFIG[legendKey] ?? LEGEND_CONFIG.other;
+  const meta = legendKey ? LEGEND_CONFIG[legendKey] : UNTAGGED_STYLE;
 
   return (
     <span
@@ -111,7 +109,7 @@ function LandMapPage() {
   const [mapRows, setMapRows] = useState([]);
   const [missingCoordinates, setMissingCoordinates] = useState([]);
   const [scopeInfo, setScopeInfo] = useState({ isScoped: false, barangayName: null });
-  const [activeLegend, setActiveLegend] = useState('all');
+  const [activeLegend, setActiveLegend] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -157,7 +155,7 @@ function LandMapPage() {
   );
 
   const visibleRows = useMemo(
-    () => (activeLegend === 'all'
+    () => (!activeLegend
       ? rowsWithLegend
       : rowsWithLegend.filter((row) => row.legendKey === activeLegend)),
     [activeLegend, rowsWithLegend]
@@ -165,6 +163,9 @@ function LandMapPage() {
 
   const legendCount = useMemo(() => rowsWithLegend.reduce((accumulator, row) => {
     const key = row.legendKey;
+    if (!key || !(key in LEGEND_CONFIG)) {
+      return accumulator;
+    }
     accumulator[key] = (accumulator[key] ?? 0) + 1;
     return accumulator;
   }, {}), [rowsWithLegend]);
@@ -201,8 +202,7 @@ function LandMapPage() {
           </div>
         </div>
         <p className="land-map-caption">
-          Yellow markers are households with 4Ps enrollment. Suggested colors: AICS in blue, other
-          social programs in green, and multiple programs in violet.
+          Program legend colors: 4Ps in yellow, AICS in blue, and TUPAD in green.
         </p>
       </section>
 
@@ -213,12 +213,12 @@ function LandMapPage() {
               key={key}
               type="button"
               className={`land-map-legend__chip ${activeLegend === key ? 'land-map-legend__chip--active' : ''}`}
-              onClick={() => setActiveLegend(key)}
+              onClick={() => setActiveLegend((current) => (current === key ? null : key))}
               style={{ '--legend-color': meta.color }}
             >
               <span className="land-map-legend__dot" />
               <span>{meta.label}</span>
-              <strong>{key === 'all' ? rowsWithLegend.length : legendCount[key] ?? 0}</strong>
+              <strong>{legendCount[key] ?? 0}</strong>
             </button>
           ))}
         </div>
@@ -241,7 +241,7 @@ function LandMapPage() {
               />
               <MapViewport points={visibleRows} />
               {visibleRows.map((row) => {
-                const legend = LEGEND_CONFIG[row.legendKey] ?? LEGEND_CONFIG.other;
+                const legend = row.legendKey ? LEGEND_CONFIG[row.legendKey] : UNTAGGED_STYLE;
                 return (
                   <CircleMarker
                     key={row.code}

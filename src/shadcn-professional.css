@@ -3065,11 +3065,48 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 3rem 3.5rem;
+  padding: 3rem 3.25rem 3rem 4.75rem;
   background: linear-gradient(150deg, #082f63 0%, #1a4f82 55%, #0d3b5e 100%);
   color: #ffffff;
   position: relative;
   overflow: hidden;
+}
+
+.auth-hero-carousel {
+  position: absolute;
+  inset: 0;
+}
+
+.auth-hero-slide {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: 3rem 3.25rem 3rem 4.75rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 420ms ease;
+}
+
+.auth-hero-slide--active {
+  opacity: 1;
+}
+
+.auth-hero-slide__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.auth-hero-slide__overlay {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(7, 22, 44, 0.3) 0%, rgba(8, 24, 49, 0.62) 58%, rgba(10, 30, 59, 0.88) 100%),
+    radial-gradient(circle at 20% 20%, rgba(100, 180, 255, 0.14) 0%, transparent 42%),
+    radial-gradient(circle at 80% 12%, rgba(255, 210, 120, 0.1) 0%, transparent 35%);
 }
 
 .auth-hero::before {
@@ -3096,11 +3133,35 @@ body {
 
 .auth-hero__inner {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   gap: 2.25rem;
   max-width: 400px;
+}
+
+.auth-hero-carousel__dots {
+  position: absolute;
+  left: 4.75rem;
+  bottom: 1.25rem;
+  display: flex;
+  gap: 0.45rem;
+  z-index: 4;
+}
+
+.auth-hero-carousel__dot {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.32);
+  padding: 0;
+  cursor: pointer;
+}
+
+.auth-hero-carousel__dot--active {
+  background: #ffffff;
+  border-color: #ffffff;
 }
 
 .auth-hero__seal {
@@ -3191,7 +3252,15 @@ body {
   }
 
   .auth-hero {
-    padding: 2rem 2rem;
+    padding: 2rem 2rem 2rem 2.75rem;
+  }
+
+  .auth-hero-slide {
+    padding: 2rem 2rem 2rem 2.75rem;
+  }
+
+  .auth-hero-carousel__dots {
+    left: 2.75rem;
   }
 }
 
@@ -3202,6 +3271,15 @@ body {
 
   .auth-hero {
     padding: 1.5rem 1.25rem;
+  }
+
+  .auth-hero-slide {
+    padding: 1.5rem 1.25rem;
+  }
+
+  .auth-hero-carousel__dots {
+    left: 1.25rem;
+    bottom: 0.8rem;
   }
 
   .auth-hero__inner {
@@ -3323,6 +3401,58 @@ body {
   flex-shrink: 0;
 }
 
+.hh-checkbox-field--compact {
+  margin: 0;
+  padding: 0.15rem 0;
+  font-weight: 500;
+}
+
+.hh-lumon-members {
+  border: 1px solid var(--ui-border);
+  background: var(--ui-surface-soft);
+  border-radius: var(--radius, 0.5rem);
+  padding: 0.75rem 0.875rem;
+}
+
+.hh-lumon-members__label {
+  margin: 0;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  color: var(--ui-text-soft);
+}
+
+.hh-lumon-members__hint {
+  margin: 0.25rem 0 0.55rem;
+  font-size: 0.8rem;
+  color: var(--ui-text-muted);
+}
+
+.hh-lumon-members__list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.15rem 0.9rem;
+}
+
+.hh-lumon-names {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.hh-lumon-name-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: var(--ui-primary-soft);
+  color: var(--ui-primary-strong);
+  border: 1px solid color-mix(in srgb, var(--ui-primary) 40%, transparent);
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.18rem 0.6rem;
+}
+
 /* ── Family member list ──────────────────────────────────────────────────── */
 
 /* ── Household row action buttons ───────────────────────────────────────── */
@@ -3337,6 +3467,99 @@ body {
 .hh-row-actions .btn,
 .hh-row-actions button {
   white-space: nowrap;
+}
+
+.hh-row-actions--menu {
+  position: relative;
+  display: inline-flex;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.hh-action-trigger {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--ui-border);
+  background: #fff;
+  color: var(--ui-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.hh-action-trigger:hover {
+  background: var(--ui-surface-soft);
+  border-color: color-mix(in srgb, var(--ui-primary) 30%, var(--ui-border));
+}
+
+.hh-action-trigger:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--ui-primary) 45%, transparent);
+  outline-offset: 2px;
+}
+
+.hh-actions-popover {
+  min-width: 10rem;
+  background: #fff;
+  border: 1px solid var(--ui-border);
+  border-radius: 0.6rem;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12);
+  padding: 0.3rem;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.hh-actions-popover__item {
+  border: 0;
+  background: transparent;
+  color: var(--ui-text);
+  padding: 0.46rem 0.58rem;
+  border-radius: 0.45rem;
+  text-align: left;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.hh-actions-popover__item:hover {
+  background: var(--ui-surface-soft);
+}
+
+.hh-actions-popover__item--danger {
+  color: #b42318;
+}
+
+.hh-actions-popover__item--danger:hover {
+  background: color-mix(in srgb, #b42318 10%, #fff);
+}
+
+.hh-geotag-actions {
+  display: grid;
+  gap: 0.4rem;
+  align-items: start;
+}
+
+.hh-geotag-actions__row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+
+.hh-geotag-link {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ui-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.hh-geotag-link:hover {
+  color: color-mix(in srgb, var(--ui-primary) 82%, #0f172a);
+}
+
+.hh-geotag-actions small {
+  color: var(--ui-text-muted);
 }
 
 /* ── Household member form list ─────────────────────────────────────────── */
@@ -3504,6 +3727,12 @@ body {
   gap: 0.1rem;
 }
 
+.hh-profile-member-card__header .hh-lumon-badge {
+  margin-left: 0;
+  margin-top: 0.25rem;
+  width: fit-content;
+}
+
 .hh-profile-member-card__number {
   font-size: 0.7rem;
   font-weight: 700;
@@ -3562,6 +3791,10 @@ body {
 @media (max-width: 640px) {
   .household-form-grid,
   .hh-member-form__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hh-lumon-members__list {
     grid-template-columns: 1fr;
   }
 

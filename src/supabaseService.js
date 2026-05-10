@@ -118,6 +118,68 @@ function normalizeText(value) {
     .toLowerCase();
 }
 
+function normalizeJsonStringArray(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => String(entry ?? '').trim())
+    .filter(Boolean);
+}
+
+function normalizeFamilyMembers(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((entry) => entry && typeof entry === 'object')
+    .map((member, index) => ({
+      _id: member._id || `member-${index}`,
+      lastName: String(member.lastName ?? '').trim(),
+      firstName: String(member.firstName ?? '').trim(),
+      middleName: String(member.middleName ?? '').trim(),
+      suffix: String(member.suffix ?? '').trim(),
+      relationship: String(member.relationship ?? '').trim(),
+      dateOfBirth: String(member.dateOfBirth ?? '').trim(),
+      gender: String(member.gender ?? '').trim(),
+      civilStatus: String(member.civilStatus ?? '').trim(),
+      religion: String(member.religion ?? '').trim(),
+      contactNumber: String(member.contactNumber ?? '').trim(),
+      currentlyStudying: Boolean(member.currentlyStudying),
+      schoolBackground: String(member.schoolBackground ?? '').trim(),
+      occupation: String(member.occupation ?? '').trim(),
+      monthlyIncome: String(member.monthlyIncome ?? '').trim(),
+    }));
+}
+
+function buildLumonFields({
+  isLumon,
+  lumonFamilyCount,
+  lumonDescription,
+  lumonMemberKeys,
+  lumonMemberNames,
+}) {
+  if (!isLumon) {
+    return {
+      is_lumon: false,
+      lumon_family_count: 1,
+      lumon_description: null,
+      lumon_member_keys: [],
+      lumon_member_names: [],
+    };
+  }
+
+  const normalizedCount = Number(lumonFamilyCount);
+  const safeFamilyCount = Number.isFinite(normalizedCount)
+    ? Math.max(1, Math.round(normalizedCount))
+    : 1;
+  const normalizedDescription = String(lumonDescription ?? '').trim();
+
+  return {
+    is_lumon: true,
+    lumon_family_count: safeFamilyCount,
+    lumon_description: normalizedDescription || null,
+    lumon_member_keys: normalizeJsonStringArray(lumonMemberKeys),
+    lumon_member_names: normalizeJsonStringArray(lumonMemberNames),
+  };
+}
+
 function formatStatusLabel(value) {
   return String(value ?? '')
     .replace(/_/g, ' ')
@@ -1904,10 +1966,30 @@ export const supabaseService = {
             household_name,
             barangay_id,
             address_line1,
+            latitude,
+            longitude,
             purok_sitio,
             postal_code,
             monthly_income,
+            head_last_name,
+            head_first_name,
+            head_middle_name,
+            head_suffix,
+            head_date_of_birth,
+            head_gender,
+            head_civil_status,
+            head_religion,
+            head_contact_number,
+            head_school_background,
+            head_occupation,
+            head_monthly_income,
+            family_members,
             poverty_level,
+            is_lumon,
+            lumon_family_count,
+            lumon_description,
+            lumon_member_keys,
+            lumon_member_names,
             barangay:barangays(name),
             household_size
           `)
@@ -2013,9 +2095,31 @@ export const supabaseService = {
           members: String(household.household_size ?? 1),
           purokSitio: household.purok_sitio || '',
           addressLine1: household.address_line1 || '',
+          latitude: normalizeCoordinate(household.latitude),
+          longitude: normalizeCoordinate(household.longitude),
           postalCode: household.postal_code || '',
           monthlyIncome: household.monthly_income != null ? String(household.monthly_income) : '',
+          headLastName: household.head_last_name || '',
+          headFirstName: household.head_first_name || '',
+          headMiddleName: household.head_middle_name || '',
+          headSuffix: household.head_suffix || '',
+          headDateOfBirth: household.head_date_of_birth || '',
+          headGender: household.head_gender || '',
+          headCivilStatus: household.head_civil_status || '',
+          headReligion: household.head_religion || '',
+          headContactNumber: household.head_contact_number || '',
+          headSchoolBackground: household.head_school_background || '',
+          headOccupation: household.head_occupation || '',
+          headMonthlyIncome: household.head_monthly_income != null
+            ? String(household.head_monthly_income)
+            : (household.monthly_income != null ? String(household.monthly_income) : ''),
+          familyMembers: normalizeFamilyMembers(household.family_members),
           povertyLevel: household.poverty_level || '',
+          isLumon: Boolean(household.is_lumon),
+          lumonFamilyCount: String(household.lumon_family_count ?? 1),
+          lumonDescription: household.lumon_description || '',
+          lumonMemberKeys: normalizeJsonStringArray(household.lumon_member_keys),
+          lumonMemberNames: normalizeJsonStringArray(household.lumon_member_names),
           openCases: '0',
           availPrograms: [...(availedProgramsByCode.get(household.household_code) ?? [])]
             .sort((left, right) => left.localeCompare(right))
@@ -2038,6 +2142,9 @@ export const supabaseService = {
         return (demoData.householdRows ?? []).map((household) => ({
           availProgramsCount: (programsByHouseholdCode.get(household.code) ?? new Set()).size,
           ...household,
+          familyMembers: normalizeFamilyMembers(household.familyMembers),
+          lumonMemberKeys: normalizeJsonStringArray(household.lumonMemberKeys),
+          lumonMemberNames: normalizeJsonStringArray(household.lumonMemberNames),
           availPrograms: [...(programsByHouseholdCode.get(household.code) ?? [])]
             .sort((left, right) => left.localeCompare(right))
             .join(', ') || 'None recorded',
@@ -2068,7 +2175,25 @@ export const supabaseService = {
             purok_sitio,
             postal_code,
             monthly_income,
+            head_last_name,
+            head_first_name,
+            head_middle_name,
+            head_suffix,
+            head_date_of_birth,
+            head_gender,
+            head_civil_status,
+            head_religion,
+            head_contact_number,
+            head_school_background,
+            head_occupation,
+            head_monthly_income,
+            family_members,
             poverty_level,
+            is_lumon,
+            lumon_family_count,
+            lumon_description,
+            lumon_member_keys,
+            lumon_member_names,
             status,
             barangay:barangays(name)
           `)
@@ -2088,7 +2213,7 @@ export const supabaseService = {
           throw new Error(`Household "${code}" was not found in Supabase.`);
         }
 
-        const [applicationsResult, applicationHistoryResult, assistanceResult] = await Promise.all([
+        const [applicationsResult, applicationHistoryResult, assistanceResult, residentsResult] = await Promise.all([
           supabase
             .from('applications')
             .select('id')
@@ -2136,6 +2261,29 @@ export const supabaseService = {
             .order('released_at', { ascending: false, nullsFirst: false })
             .order('created_at', { ascending: false })
             .limit(8),
+          supabase
+            .from('residents')
+            .select(`
+              id,
+              first_name,
+              middle_name,
+              last_name,
+              suffix_name,
+              birth_date,
+              sex,
+              civil_status,
+              relationship_to_head,
+              phone_number,
+              occupation,
+              education_level,
+              monthly_income,
+              is_head
+            `)
+            .eq('household_id', household.id)
+            .is('archived_at', null)
+            .order('is_head', { ascending: false })
+            .order('last_name', { ascending: true })
+            .order('first_name', { ascending: true }),
         ]);
 
         if (applicationsResult.error) {
@@ -2149,10 +2297,14 @@ export const supabaseService = {
         if (assistanceResult.error) {
           throw assistanceResult.error;
         }
+        if (residentsResult.error) {
+          throw residentsResult.error;
+        }
 
         const openCases = String((applicationsResult.data ?? []).length);
         const assistanceRows = assistanceResult.data ?? [];
         const applicationHistoryRows = applicationHistoryResult.data ?? [];
+        const residentRows = residentsResult.data ?? [];
         const address = [
           household.purok_sitio,
           household.address_line1,
@@ -2207,8 +2359,67 @@ export const supabaseService = {
           .sort((left, right) => new Date(right.timestamp || 0) - new Date(left.timestamp || 0))
           .slice(0, 8);
         const latestAssistance = history.find((entry) => entry.isAssistanceEvent);
+        const headResident = residentRows.find((resident) => resident.is_head) ?? residentRows[0] ?? null;
+        const residentFamilyMembers = residentRows
+          .filter((resident) => !resident.is_head)
+          .map((resident) => ({
+            _id: resident.id,
+            lastName: resident.last_name || '',
+            firstName: resident.first_name || '',
+            middleName: resident.middle_name || '',
+            suffix: resident.suffix_name || '',
+            relationship: formatStatusLabel(resident.relationship_to_head || 'family_member'),
+            dateOfBirth: resident.birth_date || '',
+            gender: resident.sex ? formatStatusLabel(resident.sex) : '',
+            civilStatus: resident.civil_status ? formatStatusLabel(resident.civil_status) : '',
+            religion: '',
+            contactNumber: resident.phone_number || '',
+            schoolBackground: resident.education_level || '',
+            occupation: resident.occupation || '',
+            monthlyIncome: resident.monthly_income != null ? String(resident.monthly_income) : '',
+          }));
+        const storedFamilyMembers = normalizeFamilyMembers(household.family_members);
+        const familyMembers = residentFamilyMembers.length > 0 ? residentFamilyMembers : storedFamilyMembers;
+        const lumonMemberKeys = normalizeJsonStringArray(household.lumon_member_keys);
+        const lumonMemberNames = normalizeJsonStringArray(household.lumon_member_names);
 
         return {
+          household: {
+            code: household.household_code,
+            head: household.household_name || 'Registered household',
+            barangay: household.barangay?.name || 'Unknown barangay',
+            purokSitio: household.purok_sitio || '',
+            addressLine1: household.address_line1 || '',
+            monthlyIncome: household.monthly_income != null ? String(household.monthly_income) : '',
+            headLastName: headResident?.last_name || household.head_last_name || '',
+            headFirstName: headResident?.first_name || household.head_first_name || '',
+            headMiddleName: headResident?.middle_name || household.head_middle_name || '',
+            headSuffix: headResident?.suffix_name || household.head_suffix || '',
+            headDateOfBirth: headResident?.birth_date || household.head_date_of_birth || '',
+            headGender: headResident?.sex
+              ? formatStatusLabel(headResident.sex)
+              : (household.head_gender || ''),
+            headCivilStatus: headResident?.civil_status
+              ? formatStatusLabel(headResident.civil_status)
+              : (household.head_civil_status || ''),
+            headReligion: household.head_religion || '',
+            headContactNumber: headResident?.phone_number || household.head_contact_number || '',
+            headSchoolBackground: headResident?.education_level || household.head_school_background || '',
+            headOccupation: headResident?.occupation || household.head_occupation || '',
+            headMonthlyIncome: headResident?.monthly_income != null
+              ? String(headResident.monthly_income)
+              : (household.head_monthly_income != null
+                ? String(household.head_monthly_income)
+                : (household.monthly_income != null ? String(household.monthly_income) : '')),
+            familyMembers,
+            totalMembers: Number(household.household_size ?? (1 + familyMembers.length)),
+            openCases,
+            isLumon: Boolean(household.is_lumon),
+            lumonFamilyCount: String(household.lumon_family_count ?? 1),
+            lumonDescription: household.lumon_description || '',
+            lumonMemberKeys,
+            lumonMemberNames,
+          },
           profile: [
             { label: 'Household code', value: household.household_code },
             { label: 'Head of family', value: household.household_name || 'Registered household' },
@@ -2408,9 +2619,29 @@ export const supabaseService = {
     members,
     purokSitio,
     addressLine1,
+    latitude,
+    longitude,
     postalCode,
     monthlyIncome,
     povertyLevel,
+    headLastName,
+    headFirstName,
+    headMiddleName,
+    headSuffix,
+    headDateOfBirth,
+    headGender,
+    headCivilStatus,
+    headReligion,
+    headContactNumber,
+    headSchoolBackground,
+    headOccupation,
+    headMonthlyIncome,
+    familyMembers,
+    isLumon,
+    lumonFamilyCount,
+    lumonDescription,
+    lumonMemberKeys,
+    lumonMemberNames,
   }) {
     assertHouseholdManagementAccess();
 
@@ -2422,9 +2653,29 @@ export const supabaseService = {
         members: String(members),
         purokSitio: purokSitio?.trim() || '',
         addressLine1: addressLine1?.trim() || '',
+        latitude: normalizeCoordinate(latitude),
+        longitude: normalizeCoordinate(longitude),
         postalCode: postalCode?.trim() || '',
         monthlyIncome: monthlyIncome?.trim() || '',
         povertyLevel: povertyLevel?.trim() || '',
+        headLastName: headLastName?.trim() || '',
+        headFirstName: headFirstName?.trim() || '',
+        headMiddleName: headMiddleName?.trim() || '',
+        headSuffix: headSuffix || '',
+        headDateOfBirth: headDateOfBirth || '',
+        headGender: headGender || '',
+        headCivilStatus: headCivilStatus || '',
+        headReligion: headReligion?.trim() || '',
+        headContactNumber: headContactNumber?.trim() || '',
+        headSchoolBackground: headSchoolBackground?.trim() || '',
+        headOccupation: headOccupation?.trim() || '',
+        headMonthlyIncome: headMonthlyIncome?.trim() || '',
+        familyMembers: normalizeFamilyMembers(familyMembers),
+        isLumon: Boolean(isLumon),
+        lumonFamilyCount: String(lumonFamilyCount ?? 1),
+        lumonDescription: lumonDescription?.trim() || '',
+        lumonMemberKeys: normalizeJsonStringArray(lumonMemberKeys),
+        lumonMemberNames: normalizeJsonStringArray(lumonMemberNames),
         openCases: '0',
         availProgramsCount: 0,
         availPrograms: 'None recorded',
@@ -2449,6 +2700,15 @@ export const supabaseService = {
     }
 
     const householdCode = code.trim().toUpperCase();
+    const normalizedLatitude = normalizeCoordinate(latitude);
+    const normalizedLongitude = normalizeCoordinate(longitude);
+    const lumonFields = buildLumonFields({
+      isLumon,
+      lumonFamilyCount,
+      lumonDescription,
+      lumonMemberKeys,
+      lumonMemberNames,
+    });
     const { error } = await supabase
       .from('households')
       .insert({
@@ -2456,12 +2716,28 @@ export const supabaseService = {
         barangay_id: selectedBarangay.id,
         household_name: head.trim(),
         address_line1: addressLine1?.trim() || 'Pending address confirmation',
+        latitude: normalizedLatitude,
+        longitude: normalizedLongitude,
         purok_sitio: purokSitio?.trim() || null,
         postal_code: postalCode?.trim() || null,
         registration_source: 'mswd_portal',
         household_size: Number(members),
         monthly_income: monthlyIncome ? Number(monthlyIncome) : null,
+        head_last_name: headLastName?.trim() || null,
+        head_first_name: headFirstName?.trim() || null,
+        head_middle_name: headMiddleName?.trim() || null,
+        head_suffix: headSuffix?.trim() || null,
+        head_date_of_birth: headDateOfBirth || null,
+        head_gender: headGender?.trim() || null,
+        head_civil_status: headCivilStatus?.trim() || null,
+        head_religion: headReligion?.trim() || null,
+        head_contact_number: headContactNumber?.trim() || null,
+        head_school_background: headSchoolBackground?.trim() || null,
+        head_occupation: headOccupation?.trim() || null,
+        head_monthly_income: headMonthlyIncome ? Number(headMonthlyIncome) : null,
+        family_members: normalizeFamilyMembers(familyMembers),
         poverty_level: povertyLevel?.trim() || null,
+        ...lumonFields,
       });
 
     if (error) {
@@ -2476,9 +2752,29 @@ export const supabaseService = {
       members: String(members),
       purokSitio: purokSitio?.trim() || '',
       addressLine1: addressLine1?.trim() || '',
+      latitude: normalizedLatitude,
+      longitude: normalizedLongitude,
       postalCode: postalCode?.trim() || '',
       monthlyIncome: monthlyIncome?.trim() || '',
       povertyLevel: povertyLevel?.trim() || '',
+      headLastName: headLastName?.trim() || '',
+      headFirstName: headFirstName?.trim() || '',
+      headMiddleName: headMiddleName?.trim() || '',
+      headSuffix: headSuffix || '',
+      headDateOfBirth: headDateOfBirth || '',
+      headGender: headGender || '',
+      headCivilStatus: headCivilStatus || '',
+      headReligion: headReligion?.trim() || '',
+      headContactNumber: headContactNumber?.trim() || '',
+      headSchoolBackground: headSchoolBackground?.trim() || '',
+      headOccupation: headOccupation?.trim() || '',
+      headMonthlyIncome: headMonthlyIncome?.trim() || '',
+      familyMembers: normalizeFamilyMembers(familyMembers),
+      isLumon: lumonFields.is_lumon,
+      lumonFamilyCount: String(lumonFields.lumon_family_count),
+      lumonDescription: lumonFields.lumon_description || '',
+      lumonMemberKeys: normalizeJsonStringArray(lumonFields.lumon_member_keys),
+      lumonMemberNames: normalizeJsonStringArray(lumonFields.lumon_member_names),
       openCases: '0',
       availProgramsCount: 0,
       availPrograms: 'None recorded',
@@ -2492,9 +2788,29 @@ export const supabaseService = {
     members,
     purokSitio,
     addressLine1,
+    latitude,
+    longitude,
     postalCode,
     monthlyIncome,
     povertyLevel,
+    headLastName,
+    headFirstName,
+    headMiddleName,
+    headSuffix,
+    headDateOfBirth,
+    headGender,
+    headCivilStatus,
+    headReligion,
+    headContactNumber,
+    headSchoolBackground,
+    headOccupation,
+    headMonthlyIncome,
+    familyMembers,
+    isLumon,
+    lumonFamilyCount,
+    lumonDescription,
+    lumonMemberKeys,
+    lumonMemberNames,
   }) {
     assertHouseholdManagementAccess();
 
@@ -2506,9 +2822,29 @@ export const supabaseService = {
         members: String(members),
         purokSitio: purokSitio?.trim() || '',
         addressLine1: addressLine1?.trim() || '',
+        latitude: normalizeCoordinate(latitude),
+        longitude: normalizeCoordinate(longitude),
         postalCode: postalCode?.trim() || '',
         monthlyIncome: monthlyIncome?.trim() || '',
         povertyLevel: povertyLevel?.trim() || '',
+        headLastName: headLastName?.trim() || '',
+        headFirstName: headFirstName?.trim() || '',
+        headMiddleName: headMiddleName?.trim() || '',
+        headSuffix: headSuffix || '',
+        headDateOfBirth: headDateOfBirth || '',
+        headGender: headGender || '',
+        headCivilStatus: headCivilStatus || '',
+        headReligion: headReligion?.trim() || '',
+        headContactNumber: headContactNumber?.trim() || '',
+        headSchoolBackground: headSchoolBackground?.trim() || '',
+        headOccupation: headOccupation?.trim() || '',
+        headMonthlyIncome: headMonthlyIncome?.trim() || '',
+        familyMembers: normalizeFamilyMembers(familyMembers),
+        isLumon: Boolean(isLumon),
+        lumonFamilyCount: String(lumonFamilyCount ?? 1),
+        lumonDescription: lumonDescription?.trim() || '',
+        lumonMemberKeys: normalizeJsonStringArray(lumonMemberKeys),
+        lumonMemberNames: normalizeJsonStringArray(lumonMemberNames),
         openCases: '0',
         availProgramsCount: 0,
         availPrograms: 'None recorded',
@@ -2533,6 +2869,15 @@ export const supabaseService = {
     }
 
     const householdCode = code.trim().toUpperCase();
+    const normalizedLatitude = normalizeCoordinate(latitude);
+    const normalizedLongitude = normalizeCoordinate(longitude);
+    const lumonFields = buildLumonFields({
+      isLumon,
+      lumonFamilyCount,
+      lumonDescription,
+      lumonMemberKeys,
+      lumonMemberNames,
+    });
     let updateQuery = supabase
       .from('households')
       .update({
@@ -2540,10 +2885,26 @@ export const supabaseService = {
         household_name: head.trim(),
         household_size: Number(members),
         address_line1: addressLine1?.trim() || 'Pending address confirmation',
+        latitude: normalizedLatitude,
+        longitude: normalizedLongitude,
         purok_sitio: purokSitio?.trim() || null,
         postal_code: postalCode?.trim() || null,
         monthly_income: monthlyIncome ? Number(monthlyIncome) : null,
+        head_last_name: headLastName?.trim() || null,
+        head_first_name: headFirstName?.trim() || null,
+        head_middle_name: headMiddleName?.trim() || null,
+        head_suffix: headSuffix?.trim() || null,
+        head_date_of_birth: headDateOfBirth || null,
+        head_gender: headGender?.trim() || null,
+        head_civil_status: headCivilStatus?.trim() || null,
+        head_religion: headReligion?.trim() || null,
+        head_contact_number: headContactNumber?.trim() || null,
+        head_school_background: headSchoolBackground?.trim() || null,
+        head_occupation: headOccupation?.trim() || null,
+        head_monthly_income: headMonthlyIncome ? Number(headMonthlyIncome) : null,
+        family_members: normalizeFamilyMembers(familyMembers),
         poverty_level: povertyLevel?.trim() || null,
+        ...lumonFields,
       })
       .eq('household_code', householdCode)
       .is('archived_at', null);
@@ -2566,9 +2927,29 @@ export const supabaseService = {
       members: String(members),
       purokSitio: purokSitio?.trim() || '',
       addressLine1: addressLine1?.trim() || '',
+      latitude: normalizedLatitude,
+      longitude: normalizedLongitude,
       postalCode: postalCode?.trim() || '',
       monthlyIncome: monthlyIncome?.trim() || '',
       povertyLevel: povertyLevel?.trim() || '',
+      headLastName: headLastName?.trim() || '',
+      headFirstName: headFirstName?.trim() || '',
+      headMiddleName: headMiddleName?.trim() || '',
+      headSuffix: headSuffix || '',
+      headDateOfBirth: headDateOfBirth || '',
+      headGender: headGender || '',
+      headCivilStatus: headCivilStatus || '',
+      headReligion: headReligion?.trim() || '',
+      headContactNumber: headContactNumber?.trim() || '',
+      headSchoolBackground: headSchoolBackground?.trim() || '',
+      headOccupation: headOccupation?.trim() || '',
+      headMonthlyIncome: headMonthlyIncome?.trim() || '',
+      familyMembers: normalizeFamilyMembers(familyMembers),
+      isLumon: lumonFields.is_lumon,
+      lumonFamilyCount: String(lumonFields.lumon_family_count),
+      lumonDescription: lumonFields.lumon_description || '',
+      lumonMemberKeys: normalizeJsonStringArray(lumonFields.lumon_member_keys),
+      lumonMemberNames: normalizeJsonStringArray(lumonFields.lumon_member_names),
       openCases: '0',
       availProgramsCount: 0,
       availPrograms: 'None recorded',
@@ -2782,7 +3163,7 @@ export const supabaseService = {
 
         let householdsQuery = supabase
           .from('households')
-          .select('id, household_code, barangay_id, household_size, monthly_income, barangay:barangays(name)')
+          .select('id, household_code, barangay_id, household_size, monthly_income, is_lumon, barangay:barangays(name)')
           .is('archived_at', null);
 
         if (scope.isScopedRole) {
@@ -2798,6 +3179,8 @@ export const supabaseService = {
         const rows = filterRowsByScopedBarangay(data ?? [], (row) => row?.barangay?.name);
         const totalHouseholds = rows.length;
         const totalResidents = rows.reduce((sum, row) => sum + Number(row.household_size ?? 1), 0);
+        const lumonHouseholds = rows.filter((row) => Boolean(row.is_lumon)).length;
+        const householdIds = rows.map((row) => row.id).filter(Boolean);
 
         const tierCounts = { no_income: 0, low_income: 0, moderate: 0, above_moderate: 0 };
         const barangayLowIncome = {};
@@ -2837,12 +3220,32 @@ export const supabaseService = {
           .sort((a, b) => b.total - a.total)
           .slice(0, 10);
 
+        let householdsWithActiveCases = 0;
+        if (householdIds.length > 0) {
+          const { data: activeCaseRows, error: activeCaseError } = await supabase
+            .from('applications')
+            .select('household_id')
+            .in('household_id', householdIds)
+            .is('archived_at', null)
+            .in('current_status', [...PENDING_APPLICATION_STATUSES, 'approved']);
+
+          if (activeCaseError) {
+            throw activeCaseError;
+          }
+
+          householdsWithActiveCases = new Set(
+            (activeCaseRows ?? []).map((entry) => entry.household_id).filter(Boolean)
+          ).size;
+        }
+
         return {
           summary: {
             totalResidents,
             totalHouseholds,
             tupadPriorityHouseholds: tupadPriority,
             indigentHouseholds: tierCounts.no_income,
+            lumonHouseholds,
+            householdsWithActiveCases,
           },
           classificationBreakdown,
           lowIncomeByBarangay,
@@ -3500,6 +3903,251 @@ export const supabaseService = {
         }));
       },
       'Failed to search residents.'
+    );
+  },
+
+  async getHouseholdsReport() {
+    return runServiceQuery(
+      async () => {
+        const scope = getScopedBarangayScope();
+        assertBarangayScopeForRead();
+
+        let query = supabase
+          .from('households')
+          .select(`
+            id,
+            household_code,
+            household_name,
+            barangay_id,
+            household_size,
+            monthly_income,
+            barangay:barangays(name)
+          `)
+          .is('archived_at', null)
+          .order('household_code', { ascending: true });
+
+        if (scope.isScopedRole && scope.barangayId) {
+          query = query.eq('barangay_id', scope.barangayId);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        const rows = filterRowsByScopedBarangay(data ?? [], (row) => row?.barangay?.name);
+        const householdIds = rows.map((r) => r.id).filter(Boolean);
+
+        // Fetch availed programs via assistance_records
+        const { data: assistRows, error: assistError } = householdIds.length
+          ? await supabase
+              .from('assistance_records')
+              .select('household_id, program:social_programs(name, code)')
+              .in('household_id', householdIds)
+              .is('archived_at', null)
+              .in('status', ['approved', 'released'])
+          : { data: [], error: null };
+
+        if (assistError) throw assistError;
+
+        const programsByHhId = new Map();
+        for (const rec of assistRows ?? []) {
+          const name = rec.program?.name || rec.program?.code;
+          if (!name || !rec.household_id) continue;
+          const set = programsByHhId.get(rec.household_id) ?? new Set();
+          set.add(name);
+          programsByHhId.set(rec.household_id, set);
+        }
+
+        return rows.map((hh) => {
+          const income = Number(hh.monthly_income ?? 0);
+          let tierKey;
+          if (income === 0) tierKey = 'no_income';
+          else if (income < 10000) tierKey = 'low_income';
+          else if (income < 20000) tierKey = 'moderate';
+          else tierKey = 'above_moderate';
+
+          const programs = [...(programsByHhId.get(hh.id) ?? [])].sort().join(', ') || '—';
+
+          return {
+            id: hh.household_code,
+            code: hh.household_code,
+            head: hh.household_name || '—',
+            barangay: hh.barangay?.name || '—',
+            members: hh.household_size ?? '—',
+            tierKey,
+            monthlyIncomeRaw: income,
+            programs,
+          };
+        });
+      },
+      () => (demoData.householdRows ?? []).map((hh) => {
+        const income = Number(hh.monthlyIncome ?? hh.headMonthlyIncome ?? 0);
+        let tierKey;
+        if (income === 0) tierKey = 'no_income';
+        else if (income < 10000) tierKey = 'low_income';
+        else if (income < 20000) tierKey = 'moderate';
+        else tierKey = 'above_moderate';
+        return {
+          id: hh.code, code: hh.code,
+          head: hh.head || hh.household_name || '—',
+          barangay: hh.barangay || '—',
+          members: hh.members ?? '—',
+          tierKey, monthlyIncomeRaw: income,
+          programs: hh.availPrograms || '—',
+        };
+      }),
+      'Failed to load households report.'
+    );
+  },
+
+  async getApplicationsReport() {
+    return runServiceQuery(
+      async () => {
+        const scope = getScopedBarangayScope();
+        assertBarangayScopeForRead();
+
+        let query = supabase
+          .from('application_queue_view')
+          .select(`
+            application_no,
+            applicant_name,
+            barangay_id,
+            barangay_name,
+            current_status,
+            program_names,
+            submitted_at,
+            last_status_at
+          `)
+          .order('submitted_at', { ascending: false, nullsFirst: false });
+
+        if (scope.isScopedRole && scope.barangayId) {
+          query = query.eq('barangay_id', scope.barangayId);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        const rows = filterRowsByScopedBarangay(data ?? [], (row) => row.barangay_name);
+
+        return rows.map((row) => {
+          const submittedDate = row.submitted_at ? new Date(row.submitted_at) : null;
+          const lastDate = row.last_status_at ? new Date(row.last_status_at) : null;
+          const now = new Date();
+          const diffHours = lastDate ? Math.floor((now - lastDate) / 3600000) : null;
+          const age = diffHours === null ? '—'
+            : diffHours < 24 ? `${diffHours}h`
+            : `${Math.floor(diffHours / 24)}d`;
+
+          return {
+            reference: row.application_no || '—',
+            applicant: row.applicant_name || 'Unknown',
+            barangay: row.barangay_name || '—',
+            program: row.program_names || '—',
+            status: formatStatusLabel(row.current_status),
+            rawStatus: row.current_status,
+            tone: statusTone(row.current_status),
+            submittedAt: submittedDate ? submittedDate.toLocaleDateString('en-PH') : '—',
+            age,
+          };
+        });
+      },
+      () => demoData.applicationQueue.map((row) => ({
+        ...row,
+        rawStatus: 'submitted',
+        submittedAt: new Date().toLocaleDateString('en-PH'),
+      })),
+      'Failed to load applications report.'
+    );
+  },
+
+  async getAssistanceReport() {
+    return runServiceQuery(
+      async () => {
+        const scope = getScopedBarangayScope();
+        assertBarangayScopeForRead();
+
+        let query = supabase
+          .from('assistance_records')
+          .select(`
+            id,
+            amount,
+            status,
+            released_at,
+            created_at,
+            barangay_id,
+            barangay:barangays(name),
+            application:applications(
+              application_no,
+              household:households(household_code, household_name),
+              application_programs(program:social_programs(name, code))
+            )
+          `)
+          .is('archived_at', null)
+          .order('created_at', { ascending: false });
+
+        if (scope.isScopedRole && scope.barangayId) {
+          query = query.eq('barangay_id', scope.barangayId);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        const rows = filterRowsByScopedBarangay(data ?? [], (row) => row?.barangay?.name);
+
+        const totalReleased = rows
+          .filter((row) => row.status === 'released')
+          .reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
+
+        const now = new Date();
+        const currentMonth = now.getMonth();
+        const currentYear = now.getFullYear();
+
+        const releasedThisMonth = rows
+          .filter((row) => {
+            if (row.status !== 'released') return false;
+            const d = new Date(row.released_at || row.created_at);
+            return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+          })
+          .reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
+
+        const tableRows = rows.map((row) => {
+          const programs = (row.application?.application_programs ?? [])
+            .map((ap) => ap.program?.name || ap.program?.code)
+            .filter(Boolean)
+            .join(', ') || '—';
+
+          const releasedDate = row.released_at
+            ? new Date(row.released_at).toLocaleDateString('en-PH')
+            : '—';
+
+          return {
+            id: row.id,
+            reference: row.application?.application_no || '—',
+            household: row.application?.household?.household_code || '—',
+            program: programs,
+            barangay: row.barangay?.name || '—',
+            amount: Number(row.amount ?? 0),
+            amountFormatted: formatCurrency(Number(row.amount ?? 0)),
+            status: row.status || '—',
+            releasedAt: releasedDate,
+          };
+        });
+
+        return {
+          rows: tableRows,
+          totalReleased,
+          releasedThisMonth,
+        };
+      },
+      () => ({
+        rows: [
+          { id: '1', reference: 'AICS-2026-00133', household: 'HH-POB-0012', program: 'AICS', barangay: 'Poblacion', amount: 5000, amountFormatted: '₱5,000.00', status: 'released', releasedAt: new Date().toLocaleDateString('en-PH') },
+          { id: '2', reference: 'TUPAD-2026-00044', household: 'HH-MAY-0008', program: 'TUPAD', barangay: 'Mayha', amount: 8500, amountFormatted: '₱8,500.00', status: 'released', releasedAt: new Date().toLocaleDateString('en-PH') },
+          { id: '3', reference: 'AICS-2026-00128', household: 'HH-POB-0023', program: 'AICS', barangay: 'Poblacion', amount: 3000, amountFormatted: '₱3,000.00', status: 'approved', releasedAt: '—' },
+        ],
+        totalReleased: 13500,
+        releasedThisMonth: 13500,
+      }),
+      'Failed to load assistance report.'
     );
   },
 

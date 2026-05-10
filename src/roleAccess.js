@@ -22,10 +22,10 @@ const ROLE_ALIASES = {
   'barangay staff': 'barangay_secretary',
 };
 
-// admin: dashboard, applications, households (view-only), land_map, settings
+// admin: dashboard, applications, households (view-only), land_map, reports, settings
 // barangay_secretary: dashboard, applications, households (full manage), reports, land_map
 const SECTION_ACCESS_BY_ROLE = {
-  admin: ['dashboard', 'applications', 'households', 'land_map', 'settings'],
+  admin: ['dashboard', 'applications', 'households', 'land_map', 'reports', 'settings'],
   barangay_secretary: ['dashboard', 'applications', 'households', 'reports', 'land_map'],
 };
 

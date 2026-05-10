@@ -1,13 +1,61 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { authenticateUser, demoCredentials, isSupabaseEnabled } from '../auth';
 
 function LoginPage({ onLogin }) {
   const useDemoCredentials = process.env.NODE_ENV === 'test' && !isSupabaseEnabled;
+  const heroSlides = [
+    {
+      image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Beach%20near%20Nauhon%2C%20Antique.jpg',
+      fallbackImage: 'https://upload.wikimedia.org/wikipedia/commons/8/8e/Ph_locator_antique_barbaza.png',
+      eyebrow: 'Republic of the Philippines',
+      title: 'Municipality of Barbaza',
+      description: 'Social welfare records and assistance services for every barangay in Barbaza, Antique.',
+      bullets: [
+        'Application queue management',
+        'Household registry and profiling',
+        'Role-based barangay access',
+      ],
+    },
+    {
+      image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Fishing%20tools%2C%20Nauhon%2C%20Sebaste.jpg',
+      fallbackImage: 'https://upload.wikimedia.org/wikipedia/commons/8/8e/Ph_locator_antique_barbaza.png',
+      eyebrow: 'Coastal Community',
+      title: 'Barbaza Municipal Reach',
+      description: 'Keep resident and household records connected to real communities across coastal and inland barangays.',
+      bullets: [
+        'Household profiles by barangay',
+        'Social program service tracking',
+        'Community-first case handling',
+      ],
+    },
+    {
+      image: 'https://commons.wikimedia.org/wiki/Special:FilePath/Bugasong%20Sea%20Shore.jpg',
+      fallbackImage: 'https://upload.wikimedia.org/wikipedia/commons/8/8e/Ph_locator_antique_barbaza.png',
+      eyebrow: 'Municipal Mapping',
+      title: 'Map-Linked Household Registry',
+      description: 'Pin household locations and monitor program coverage to support planning and field coordination.',
+      bullets: [
+        'Open in map from household setup',
+        'Coordinate-aware validation',
+        'Better targeting for outreach',
+      ],
+    },
+  ];
+
   const [email, setEmail] = useState(useDemoCredentials ? demoCredentials.email : '');
   const [password, setPassword] = useState(useDemoCredentials ? demoCredentials.password : '');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [activeSlide, setActiveSlide] = useState(0);
+  const [failedSlides, setFailedSlides] = useState({});
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setActiveSlide((current) => (current + 1) % heroSlides.length);
+    }, 5500);
+    return () => window.clearInterval(timer);
+  }, [heroSlides.length]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -27,27 +75,60 @@ function LoginPage({ onLogin }) {
   return (
     <div className="auth-page">
       {/* Left branding hero */}
-      <div className="auth-hero" aria-hidden="true">
-        <div className="auth-hero__inner">
-          <img
-            src={`${process.env.PUBLIC_URL}/barbaza-seal.png`}
-            alt=""
-            className="auth-hero__seal"
-          />
-          <div className="auth-hero__copy">
-            <span className="section-eyebrow">Republic of the Philippines</span>
-            <h1>Municipality of Barbaza</h1>
-            <p>
-              Centralized records management for social welfare programs and
-              community assistance services across all barangays.
-            </p>
-          </div>
-          <ul className="auth-hero__bullets">
-            <li><span className="auth-hero__bullet-dot" />Application queue management</li>
-            <li><span className="auth-hero__bullet-dot" />Household registry &amp; profiling</li>
-            <li><span className="auth-hero__bullet-dot" />Program eligibility tracking</li>
-            <li><span className="auth-hero__bullet-dot" />Role-based barangay access</li>
-          </ul>
+      <div className="auth-hero" aria-label="Municipality of Barbaza highlights">
+        <div className="auth-hero-carousel">
+          {heroSlides.map((slide, index) => {
+            const isActive = index === activeSlide;
+            const imageSource = failedSlides[index]
+              ? (slide.fallbackImage ?? 'https://upload.wikimedia.org/wikipedia/commons/8/8e/Ph_locator_antique_barbaza.png')
+              : slide.image;
+
+            return (
+              <article
+                key={`${slide.title}-${index}`}
+                className={`auth-hero-slide ${isActive ? 'auth-hero-slide--active' : ''}`}
+                aria-hidden={!isActive}
+              >
+                <img
+                  src={imageSource}
+                  alt={isActive ? slide.title : ''}
+                  className="auth-hero-slide__image"
+                  onError={() => setFailedSlides((current) => ({ ...current, [index]: true }))}
+                />
+                <div className="auth-hero-slide__overlay" />
+                <div className="auth-hero__inner">
+                  <img
+                    src={`${process.env.PUBLIC_URL}/barbaza-seal.png`}
+                    alt=""
+                    className="auth-hero__seal"
+                  />
+                  <div className="auth-hero__copy">
+                    <span className="section-eyebrow">{slide.eyebrow}</span>
+                    <h1>{slide.title}</h1>
+                    <p>{slide.description}</p>
+                  </div>
+                  <ul className="auth-hero__bullets">
+                    {slide.bullets.map((bullet) => (
+                      <li key={bullet}><span className="auth-hero__bullet-dot" />{bullet}</li>
+                    ))}
+                  </ul>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+        <div className="auth-hero-carousel__dots" role="tablist" aria-label="Hero slides">
+          {heroSlides.map((slide, index) => (
+            <button
+              key={`dot-${slide.title}`}
+              type="button"
+              role="tab"
+              className={`auth-hero-carousel__dot ${index === activeSlide ? 'auth-hero-carousel__dot--active' : ''}`}
+              aria-selected={index === activeSlide}
+              aria-label={`Show slide ${index + 1}`}
+              onClick={() => setActiveSlide(index)}
+            />
+          ))}
         </div>
       </div>
 
@@ -80,7 +161,6 @@ function LoginPage({ onLogin }) {
                 autoComplete="username"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="name@barbaza.gov.ph"
                 required
               />
             </label>

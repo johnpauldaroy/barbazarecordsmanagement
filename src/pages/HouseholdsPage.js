@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import InteractiveTable from '../components/InteractiveTable';
 import SectionHeading from '../components/SectionHeading';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
+import { MoreHorizontal } from 'lucide-react';
 import { classifyIncome } from '../incomeClassification';
 import {
   canManageHouseholds as canManageHouseholdsByRole,
@@ -120,6 +121,50 @@ function formatMemberName(member) {
     .join(' ') || '-';
 }
 
+const LUMON_HEAD_KEY = '__head__';
+
+function getLumonMemberKey(member, index) {
+  const rawId = String(member?._id ?? '').trim();
+  return rawId || `member-${index}`;
+}
+
+function getLumonMemberChoices(formState) {
+  const headName = formatHeadName(formState) || formState.code || 'Head of household';
+  const choices = [{ key: LUMON_HEAD_KEY, label: `${headName} (Head)` }];
+
+  for (let index = 0; index < formState.familyMembers.length; index += 1) {
+    const member = formState.familyMembers[index];
+    const memberName = formatMemberName(member);
+    const relationship = String(member.relationship || 'Family member').trim();
+    choices.push({
+      key: getLumonMemberKey(member, index),
+      label: `${memberName} (${relationship})`,
+    });
+  }
+
+  return choices;
+}
+
+function sanitizeLumonMemberKeys(keys, choices) {
+  const allowed = new Set((choices ?? []).map((choice) => choice.key));
+  const unique = [];
+  for (const key of keys ?? []) {
+    const normalized = String(key ?? '').trim();
+    if (!normalized || !allowed.has(normalized) || unique.includes(normalized)) {
+      continue;
+    }
+    unique.push(normalized);
+  }
+  return unique;
+}
+
+function deriveLumonMemberNames(choices, selectedKeys) {
+  const selected = new Set(selectedKeys ?? []);
+  return (choices ?? [])
+    .filter((choice) => selected.has(choice.key))
+    .map((choice) => choice.label);
+}
+
 function newMember() {
   return {
     _id: `${Date.now()}-${Math.random()}`,
@@ -186,6 +231,8 @@ const EMPTY_FORM = {
   barangay: '',
   purokSitio: '',
   addressLine1: '',
+  latitude: '',
+  longitude: '',
   headLastName: '',
   headFirstName: '',
   headMiddleName: '',
@@ -203,6 +250,8 @@ const EMPTY_FORM = {
   isLumon: false,
   lumonFamilyCount: '1',
   lumonDescription: '',
+  lumonMemberKeys: [],
+  lumonMemberNames: [],
 };
 
 // Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ sub-components Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬
@@ -327,12 +376,24 @@ function HouseholdFormModal({
   editingMemberIndex,
   draftMember,
   onDraftMemberChange,
+  onToggleLumonMember,
+  onUseCurrentLocation,
+  isLocatingGeo,
+  geoError,
   onClose,
   onSubmit,
 }) {
   const isEdit = mode === 'edit';
   const age = computeAge(formState.headDateOfBirth);
   const totalMembers = 1 + formState.familyMembers.length;
+  const lumonChoices = getLumonMemberChoices(formState);
+  const selectedLumonMembers = new Set(formState.lumonMemberKeys ?? []);
+  const latitude = Number(formState.latitude);
+  const longitude = Number(formState.longitude);
+  const hasValidCoordinates = Number.isFinite(latitude) && Number.isFinite(longitude);
+  const openInMapUrl = hasValidCoordinates
+    ? `https://www.google.com/maps?q=${latitude},${longitude}`
+    : '';
 
   return (
     <Dialog open onOpenChange={(next) => { if (!next) onClose(); }}>
@@ -386,6 +447,46 @@ function HouseholdFormModal({
               <FieldRow label="Address" htmlFor="hh-address" wide>
                 <Input id="hh-address" name="addressLine1" value={formState.addressLine1} onChange={onChange} placeholder="Street / area description" required />
               </FieldRow>
+              <FieldRow label="Latitude" htmlFor="hh-lat">
+                <Input
+                  id="hh-lat"
+                  name="latitude"
+                  type="number"
+                  step="0.000001"
+                  min="-90"
+                  max="90"
+                  value={formState.latitude}
+                  onChange={onChange}
+                  placeholder="e.g. 11.195867"
+                />
+              </FieldRow>
+              <FieldRow label="Longitude" htmlFor="hh-lng">
+                <Input
+                  id="hh-lng"
+                  name="longitude"
+                  type="number"
+                  step="0.000001"
+                  min="-180"
+                  max="180"
+                  value={formState.longitude}
+                  onChange={onChange}
+                  placeholder="e.g. 122.038931"
+                />
+              </FieldRow>
+              <div className="household-form-grid__wide hh-geotag-actions">
+                <div className="hh-geotag-actions__row">
+                  <Button type="button" variant="outline" size="sm" onClick={onUseCurrentLocation} disabled={isLocatingGeo}>
+                    {isLocatingGeo ? 'Locating...' : 'Use current location'}
+                  </Button>
+                  {hasValidCoordinates ? (
+                    <a href={openInMapUrl} target="_blank" rel="noopener noreferrer" className="hh-geotag-link">
+                      Open in map
+                    </a>
+                  ) : null}
+                </div>
+                <small>Coordinates are used to point this household on the Land Map.</small>
+                {geoError ? <small className="auth-alert">{geoError}</small> : null}
+              </div>
             </div>
           </div>
 
@@ -476,7 +577,7 @@ function HouseholdFormModal({
                 {formState.familyMembers.map((member, index) => (
                   editingMemberIndex === index ? (
                     <MemberForm
-                      key={member._id}
+                      key={member._id || `member-${index}`}
                       member={draftMember}
                       onChange={onDraftMemberChange}
                       onSave={() => onSaveMember(index)}
@@ -484,7 +585,7 @@ function HouseholdFormModal({
                     />
                   ) : (
                     <MemberRow
-                      key={member._id}
+                      key={member._id || `member-${index}`}
                       member={member}
                       onEdit={() => onEditMember(index)}
                       onRemove={() => onRemoveMember(index)}
@@ -546,6 +647,24 @@ function HouseholdFormModal({
                       placeholder="e.g. Serrano family, Cruz family, Dela Paz family"
                     />
                   </FieldRow>
+                  <div className="household-form-grid__wide hh-lumon-members">
+                    <p className="hh-lumon-members__label">Family members included in Lumon</p>
+                    <p className="hh-lumon-members__hint">
+                      Select the head/member records that belong to the shared-household arrangement.
+                    </p>
+                    <div className="hh-lumon-members__list">
+                      {lumonChoices.map((choice) => (
+                        <label key={choice.key} className="hh-checkbox-field hh-checkbox-field--compact">
+                          <input
+                            type="checkbox"
+                            checked={selectedLumonMembers.has(choice.key)}
+                            onChange={(event) => onToggleLumonMember(choice.key, event.target.checked)}
+                          />
+                          <span>{choice.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
                 </>
               )}
             </div>
@@ -578,12 +697,14 @@ function ProfileField({ label, value }) {
 }
 
 function HouseholdProfileModal({ household, details, onClose }) {
-  const h = household;
+  const h = details?.household ? { ...household, ...details.household } : household;
   const age = computeAge(h.headDateOfBirth);
   const headFullName = h.headFirstName
     ? [h.headFirstName, h.headMiddleName, h.headLastName, h.headSuffix].filter(Boolean).join(' ')
     : h.head || '-';
-  const totalMembers = 1 + (h.familyMembers?.length ?? 0);
+  const familyMembers = Array.isArray(h.familyMembers) ? h.familyMembers : [];
+  const totalMembers = Number(h.totalMembers ?? (1 + familyMembers.length));
+  const lumonMemberKeySet = new Set(h.lumonMemberKeys ?? []);
 
   return (
     <Dialog open onOpenChange={(next) => { if (!next) onClose(); }}>
@@ -591,7 +712,10 @@ function HouseholdProfileModal({ household, details, onClose }) {
         <DialogHeader className="records-modal__header">
           <div>
             <span className="section-eyebrow">Household profile</span>
-            <DialogTitle>{h.code}</DialogTitle>
+            <DialogTitle>
+              {h.code}
+              {h.isLumon ? <span className="hh-lumon-badge">LUMON</span> : null}
+            </DialogTitle>
           </div>
           <DialogDescription className="sr-only">Review household profile and assistance history.</DialogDescription>
         </DialogHeader>
@@ -614,6 +738,16 @@ function HouseholdProfileModal({ household, details, onClose }) {
             <strong>Shared household (lumon)</strong>
             <p>{h.lumonDescription}</p>
           </div>
+        )}
+        {h.isLumon && Array.isArray(h.lumonMemberNames) && h.lumonMemberNames.length > 0 && (
+          <section className="panel panel--highlight">
+            <SectionHeading eyebrow="Lumon membership" title="Included household members" />
+            <div className="hh-lumon-names">
+              {h.lumonMemberNames.map((memberName, index) => (
+                <span key={`${memberName}-${index}`} className="hh-lumon-name-pill">{memberName}</span>
+              ))}
+            </div>
+          </section>
         )}
 
         {/* Head of household */}
@@ -638,19 +772,21 @@ function HouseholdProfileModal({ household, details, onClose }) {
         </section>
 
         {/* Family members */}
-        {h.familyMembers?.length > 0 && (
-          <section className="panel">
-            <SectionHeading eyebrow="Composition" title={`Family members (${h.familyMembers.length})`} />
+        <section className="panel">
+          <SectionHeading eyebrow="Composition" title={`Family members (${familyMembers.length})`} />
+          {familyMembers.length > 0 ? (
             <div className="hh-profile-members-list">
-              {h.familyMembers.map((member, index) => {
+              {familyMembers.map((member, index) => {
                 const memberAge = computeAge(member.dateOfBirth);
                 const memberName = formatMemberName(member);
+                const isLumonMember = h.isLumon && lumonMemberKeySet.has(member._id);
                 return (
                   <div key={member._id || index} className="hh-profile-member-card">
                     <div className="hh-profile-member-card__header">
                       <div>
                         <span className="hh-profile-member-card__number">Member {index + 1}</span>
                         <strong className="hh-profile-member-card__name">{memberName}</strong>
+                        {isLumonMember ? <span className="hh-lumon-badge">LUMON</span> : null}
                       </div>
                       {member.relationship && (
                         <span className="hh-profile-member-card__rel">{member.relationship}</span>
@@ -677,8 +813,10 @@ function HouseholdProfileModal({ household, details, onClose }) {
                 );
               })}
             </div>
-          </section>
-        )}
+          ) : (
+            <div className="records-history__empty">No family members recorded for this household.</div>
+          )}
+        </section>
 
         {/* Assistance history from details */}
         <section className="panel panel--highlight">
@@ -707,35 +845,97 @@ function HouseholdProfileModal({ household, details, onClose }) {
 // Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ HouseholdActions Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬
 
 function HouseholdActions({ item, onViewProfile, onEdit, onDelete }) {
+  const [popoverPos, setPopoverPos] = useState(null);
+  const triggerRef = useRef(null);
+  const popoverRef = useRef(null);
+  const menuId = `hh-actions-${String(item?.code ?? '').toLowerCase().replace(/[^a-z0-9_-]/g, '-')}`;
+  const isOpen = popoverPos !== null;
+
+  const openMenu = (event) => {
+    event.stopPropagation();
+    if (isOpen) {
+      setPopoverPos(null);
+      return;
+    }
+    const rect = triggerRef.current.getBoundingClientRect();
+    setPopoverPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
+  };
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const close = (event) => {
+      if (
+        popoverRef.current && !popoverRef.current.contains(event.target) &&
+        triggerRef.current && !triggerRef.current.contains(event.target)
+      ) {
+        setPopoverPos(null);
+      }
+    };
+    const closeKey = (event) => { if (event.key === 'Escape') setPopoverPos(null); };
+    const closeScroll = () => setPopoverPos(null);
+
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', closeKey);
+    window.addEventListener('scroll', closeScroll, true);
+    window.addEventListener('resize', closeScroll);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', closeKey);
+      window.removeEventListener('scroll', closeScroll, true);
+      window.removeEventListener('resize', closeScroll);
+    };
+  }, [isOpen]);
+
+  const runAction = (handler) => (event) => {
+    event.stopPropagation();
+    setPopoverPos(null);
+    if (handler) handler();
+  };
+
   return (
-    <div className="hh-row-actions" onClick={(e) => e.stopPropagation()}>
-      <Button
+    <div className="hh-row-actions hh-row-actions--menu" onClick={(e) => e.stopPropagation()}>
+      <button
+        ref={triggerRef}
         type="button"
-        variant="outline"
-        size="sm"
-        onClick={(e) => { e.stopPropagation(); onViewProfile(); }}
+        className="hh-action-trigger"
+        aria-label="Open actions"
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        aria-controls={menuId}
+        onClick={openMenu}
       >
-        View profile
-      </Button>
-      {onEdit ? (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={(e) => { e.stopPropagation(); onEdit(); }}
+        <MoreHorizontal size={16} aria-hidden="true" />
+      </button>
+
+      {isOpen ? (
+        <div
+          ref={popoverRef}
+          id={menuId}
+          className="hh-actions-popover"
+          role="menu"
+          aria-label="Household actions"
+          style={{ position: 'fixed', top: popoverPos.top, right: popoverPos.right, zIndex: 9999 }}
         >
-          Edit
-        </Button>
-      ) : null}
-      {onDelete ? (
-        <Button
-          type="button"
-          variant="destructive"
-          size="sm"
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
-        >
-          Delete
-        </Button>
+          <button type="button" className="hh-actions-popover__item" role="menuitem" onClick={runAction(onViewProfile)}>
+            View profile
+          </button>
+          {onEdit ? (
+            <button type="button" className="hh-actions-popover__item" role="menuitem" onClick={runAction(onEdit)}>
+              Edit
+            </button>
+          ) : null}
+          {onDelete ? (
+            <button
+              type="button"
+              className="hh-actions-popover__item hh-actions-popover__item--danger"
+              role="menuitem"
+              onClick={runAction(onDelete)}
+            >
+              Delete
+            </button>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );
@@ -755,6 +955,8 @@ function HouseholdsPage({ session }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
   const [pageError, setPageError] = useState('');
+  const [isLocatingGeo, setIsLocatingGeo] = useState(false);
+  const [geoError, setGeoError] = useState('');
 
   // Member editing state
   const [editingMemberIndex, setEditingMemberIndex] = useState(null); // null = closed, -1 = new
@@ -798,6 +1000,20 @@ function HouseholdsPage({ session }) {
         if (name === 'headCurrentlyStudying' && !checked) {
           return { ...current, headCurrentlyStudying: false, headSchoolBackground: '' };
         }
+        if (name === 'isLumon' && !checked) {
+          return {
+            ...current,
+            isLumon: false,
+            lumonFamilyCount: '1',
+            lumonDescription: '',
+            lumonMemberKeys: [],
+            lumonMemberNames: [],
+          };
+        }
+        if (name === 'isLumon' && checked) {
+          const nextCount = Number(current.lumonFamilyCount) >= 2 ? current.lumonFamilyCount : '2';
+          return { ...current, isLumon: true, lumonFamilyCount: nextCount };
+        }
         return { ...current, [name]: checked };
       }
       return { ...current, [name]: value };
@@ -823,12 +1039,21 @@ function HouseholdsPage({ session }) {
     if (!draftMember) return;
     setHouseholdForm((current) => {
       const updatedMembers = [...current.familyMembers];
+      const memberWithId = {
+        ...draftMember,
+        _id: draftMember._id || `${Date.now()}-${Math.random()}`,
+      };
       if (index === -1) {
-        updatedMembers.push(draftMember);
+        updatedMembers.push(memberWithId);
       } else {
-        updatedMembers[index] = draftMember;
+        updatedMembers[index] = memberWithId;
       }
-      return { ...current, familyMembers: updatedMembers };
+      const nextForm = { ...current, familyMembers: updatedMembers };
+      const choices = getLumonMemberChoices(nextForm);
+      return {
+        ...nextForm,
+        lumonMemberKeys: sanitizeLumonMemberKeys(current.lumonMemberKeys, choices),
+      };
     });
     setDraftMember(null);
     setEditingMemberIndex(null);
@@ -845,18 +1070,41 @@ function HouseholdsPage({ session }) {
   };
 
   const handleRemoveMember = (index) => {
-    setHouseholdForm((current) => ({
-      ...current,
-      familyMembers: current.familyMembers.filter((_, i) => i !== index),
-    }));
+    setHouseholdForm((current) => {
+      const nextForm = {
+        ...current,
+        familyMembers: current.familyMembers.filter((_, i) => i !== index),
+      };
+      const choices = getLumonMemberChoices(nextForm);
+      return {
+        ...nextForm,
+        lumonMemberKeys: sanitizeLumonMemberKeys(current.lumonMemberKeys, choices),
+      };
+    });
     if (editingMemberIndex === index) {
       setDraftMember(null);
       setEditingMemberIndex(null);
     }
   };
 
+  const handleToggleLumonMember = (memberKey, checked) => {
+    setHouseholdForm((current) => {
+      const choices = getLumonMemberChoices(current);
+      const base = sanitizeLumonMemberKeys(current.lumonMemberKeys, choices);
+      const key = String(memberKey ?? '').trim();
+      const selected = new Set(base);
+      if (checked) selected.add(key);
+      else selected.delete(key);
+      return {
+        ...current,
+        lumonMemberKeys: sanitizeLumonMemberKeys([...selected], choices),
+      };
+    });
+  };
+
   const openAddModal = () => {
     setFormError('');
+    setGeoError('');
     const defaultBarangay = isBarangayScopedRole
       ? (scopedBarangayName || barangays[0]?.name || '')
       : (barangays[0]?.name ?? '');
@@ -872,11 +1120,15 @@ function HouseholdsPage({ session }) {
 
   const openEditModal = (row) => {
     setFormError('');
-    setHouseholdForm({
+    setGeoError('');
+    const parsedLumonCount = Number(row.lumonFamilyCount);
+    const nextForm = {
       code: row.code,
       barangay: row.barangay,
       purokSitio: row.purokSitio || '',
       addressLine1: row.addressLine1 || '',
+      latitude: row.latitude != null ? String(row.latitude) : '',
+      longitude: row.longitude != null ? String(row.longitude) : '',
       headLastName: row.headLastName || '',
       headFirstName: row.headFirstName || '',
       headMiddleName: row.headMiddleName || '',
@@ -891,14 +1143,24 @@ function HouseholdsPage({ session }) {
       headOccupation: row.headOccupation || '',
       headMonthlyIncome: row.headMonthlyIncome || '',
       familyMembers: Array.isArray(row.familyMembers)
-        ? row.familyMembers.map((member) => ({
+        ? row.familyMembers.map((member, index) => ({
             ...member,
+            _id: member._id || `${row.code}-member-${index}`,
             currentlyStudying: isCurrentlyStudyingFromValue(member.schoolBackground),
           }))
         : [],
       isLumon: row.isLumon || false,
-      lumonFamilyCount: row.lumonFamilyCount || '1',
+      lumonFamilyCount: row.isLumon
+        ? String(Number.isFinite(parsedLumonCount) && parsedLumonCount >= 2 ? parsedLumonCount : 2)
+        : '1',
       lumonDescription: row.lumonDescription || '',
+      lumonMemberKeys: Array.isArray(row.lumonMemberKeys) ? row.lumonMemberKeys : [],
+      lumonMemberNames: Array.isArray(row.lumonMemberNames) ? row.lumonMemberNames : [],
+    };
+    const choices = getLumonMemberChoices(nextForm);
+    setHouseholdForm({
+      ...nextForm,
+      lumonMemberKeys: sanitizeLumonMemberKeys(nextForm.lumonMemberKeys, choices),
     });
     setEditingMemberIndex(null);
     setDraftMember(null);
@@ -908,9 +1170,43 @@ function HouseholdsPage({ session }) {
   const closeModal = () => {
     setModalMode(null);
     setFormError('');
+    setGeoError('');
+    setIsLocatingGeo(false);
     setEditingMemberIndex(null);
     setDraftMember(null);
     resetForm();
+  };
+
+  const handleUseCurrentLocation = () => {
+    setGeoError('');
+    if (!navigator?.geolocation) {
+      setGeoError('Geolocation is not supported on this browser.');
+      return;
+    }
+
+    setIsLocatingGeo(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const latitude = Number(position.coords.latitude);
+        const longitude = Number(position.coords.longitude);
+        setHouseholdForm((current) => ({
+          ...current,
+          latitude: Number.isFinite(latitude) ? latitude.toFixed(6) : current.latitude,
+          longitude: Number.isFinite(longitude) ? longitude.toFixed(6) : current.longitude,
+        }));
+        setIsLocatingGeo(false);
+      },
+      (error) => {
+        const message = error?.code === 1
+          ? 'Location permission was denied.'
+          : error?.code === 2
+            ? 'Current location is unavailable.'
+            : 'Unable to fetch current location.';
+        setGeoError(message);
+        setIsLocatingGeo(false);
+      },
+      { enableHighAccuracy: true, timeout: 12000 }
+    );
   };
 
   const openProfileModal = async (row) => {
@@ -934,6 +1230,16 @@ function HouseholdsPage({ session }) {
   const handleSubmit = async (event) => {
     event.preventDefault();
     const f = householdForm;
+    const lumonChoices = getLumonMemberChoices(f);
+    const lumonMemberKeys = f.isLumon
+      ? sanitizeLumonMemberKeys(f.lumonMemberKeys, lumonChoices)
+      : [];
+    const lumonMemberNames = f.isLumon
+      ? deriveLumonMemberNames(lumonChoices, lumonMemberKeys)
+      : [];
+    const normalizedLumonFamilyCount = f.isLumon
+      ? String(Math.max(2, Number(f.lumonFamilyCount) || 2))
+      : '1';
 
     const payload = {
       code: f.code.trim().toUpperCase(),
@@ -942,6 +1248,8 @@ function HouseholdsPage({ session }) {
       members: String(1 + f.familyMembers.length),
       purokSitio: f.purokSitio.trim(),
       addressLine1: f.addressLine1.trim(),
+      latitude: f.latitude,
+      longitude: f.longitude,
       postalCode: '',
       monthlyIncome: f.headMonthlyIncome.trim(),
       povertyLevel: '',
@@ -965,8 +1273,10 @@ function HouseholdsPage({ session }) {
         schoolBackground: member.currentlyStudying ? String(member.schoolBackground ?? '').trim() : '',
       })),
       isLumon: f.isLumon,
-      lumonFamilyCount: f.isLumon ? f.lumonFamilyCount : '1',
+      lumonFamilyCount: normalizedLumonFamilyCount,
       lumonDescription: f.isLumon ? f.lumonDescription.trim() : '',
+      lumonMemberKeys,
+      lumonMemberNames,
     };
 
     setIsSubmitting(true);
@@ -1122,6 +1432,10 @@ function HouseholdsPage({ session }) {
           editingMemberIndex={editingMemberIndex}
           draftMember={draftMember}
           onDraftMemberChange={handleDraftMemberChange}
+          onToggleLumonMember={handleToggleLumonMember}
+          onUseCurrentLocation={handleUseCurrentLocation}
+          isLocatingGeo={isLocatingGeo}
+          geoError={geoError}
           onClose={closeModal}
           onSubmit={handleSubmit}
         />
@@ -1139,6 +1453,3 @@ function HouseholdsPage({ session }) {
 }
 
 export default HouseholdsPage;
-
-
-

@@ -553,6 +553,8 @@ export const householdRows = [
     isLumon: false,
     lumonFamilyCount: '1',
     lumonDescription: '',
+    lumonMemberKeys: [],
+    lumonMemberNames: [],
   },
   {
     code: 'HH-MAY-0118',
@@ -611,6 +613,8 @@ export const householdRows = [
     isLumon: false,
     lumonFamilyCount: '1',
     lumonDescription: '',
+    lumonMemberKeys: [],
+    lumonMemberNames: [],
   },
   {
     code: 'HH-BAD-0201',
@@ -685,6 +689,12 @@ export const householdRows = [
     isLumon: true,
     lumonFamilyCount: '2',
     lumonDescription: 'Ignacio family (main), Mario Ignacio family (son, 2nd floor)',
+    lumonMemberKeys: ['__head__', 'hh-bad-m2', 'hh-bad-m3'],
+    lumonMemberNames: [
+      'Rosa B. Ignacio (Head)',
+      'Mario Ignacio (Son)',
+      'Celia Ignacio (Daughter-in-law)',
+    ],
   },
   {
     code: 'HH-ALO-0077',
@@ -759,6 +769,13 @@ export const householdRows = [
     isLumon: true,
     lumonFamilyCount: '3',
     lumonDescription: 'Tajan family (main), Renato & Marivic family (son), Nena Pascua (elderly relative, annexed room)',
+    lumonMemberKeys: ['__head__', 'hh-alo-m1', 'hh-alo-m2', 'hh-alo-m3'],
+    lumonMemberNames: [
+      'Josephine L. Tajan (Head)',
+      'Renato Tajan (Son)',
+      'Marivic Tajan (Daughter-in-law)',
+      'Nena G. Pascua (Other relative)',
+    ],
   },
 ];
 
