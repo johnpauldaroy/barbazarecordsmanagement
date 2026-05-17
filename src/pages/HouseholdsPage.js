@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { getHashQueryParams } from '../routes';
 import InteractiveTable from '../components/InteractiveTable';
 import SectionHeading from '../components/SectionHeading';
 import { Button } from '../components/ui/button';
@@ -626,7 +627,7 @@ function HouseholdFormModal({
 
           {/* Ã¢"â‚¬Ã¢"â‚¬ Section 4: Lumon indicator Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ */}
           <div className="household-form-section">
-            <p className="household-form-section__label">Lumon / shared household</p>
+            <p className="household-form-section__label">Lumon person tagging</p>
             <div className="household-form-grid gap-4">
               <label className="hh-checkbox-field" htmlFor="hh-lumon">
                 <input
@@ -636,25 +637,14 @@ function HouseholdFormModal({
                   checked={formState.isLumon}
                   onChange={onChange}
                 />
-                <span>Multiple families share this household (lumon)</span>
+                <span>Tag specific person records as Lumon</span>
               </label>
               {formState.isLumon && (
                 <>
-                  <FieldRow label="Number of families" htmlFor="hh-lumon-count">
-                    <Input
-                      id="hh-lumon-count"
-                      name="lumonFamilyCount"
-                      type="number"
-                      min="2"
-                      max="10"
-                      value={formState.lumonFamilyCount}
-                      onChange={onChange}
-                    />
-                  </FieldRow>
                   <div className="household-form-grid__wide hh-lumon-members">
-                    <p className="hh-lumon-members__label">Family members included in Lumon</p>
+                    <p className="hh-lumon-members__label">Persons tagged as Lumon</p>
                     <p className="hh-lumon-members__hint">
-                      Select the head/member records that belong to the shared-household arrangement.
+                      Select the head or household member records that should carry the Lumon tag.
                     </p>
                     <div className="hh-lumon-members__list">
                       {lumonChoices.map((choice) => (
@@ -691,11 +681,10 @@ function HouseholdFormModal({
 // Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬ HouseholdProfileModal Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬Ã¢"â‚¬
 
 function ProfileField({ label, value }) {
-  if (!value) return null;
   return (
     <div className="hh-profile-field">
       <span className="hh-profile-field__label">{label}</span>
-      <strong className="hh-profile-field__value">{value}</strong>
+      <strong className="hh-profile-field__value">{value || '—'}</strong>
     </div>
   );
 }
@@ -709,6 +698,7 @@ function HouseholdProfileModal({ household, details, onClose }) {
   const familyMembers = Array.isArray(h.familyMembers) ? h.familyMembers : [];
   const totalMembers = Number(h.totalMembers ?? (1 + familyMembers.length));
   const lumonMemberKeySet = new Set(h.lumonMemberKeys ?? []);
+  const isHeadLumonMember = h.isLumon && lumonMemberKeySet.has(LUMON_HEAD_KEY);
 
   return (
     <Dialog open onOpenChange={(next) => { if (!next) onClose(); }}>
@@ -731,21 +721,21 @@ function HouseholdProfileModal({ household, details, onClose }) {
           <div className="records-modal__card"><span>Open cases</span><strong>{h.openCases || '0'}</strong></div>
           {h.isLumon && (
             <div className="records-modal__card records-modal__card--highlight">
-              <span>Lumon household</span>
-              <strong>{h.lumonFamilyCount || '2'}+ families</strong>
+              <span>Lumon persons</span>
+              <strong>{Array.isArray(h.lumonMemberNames) && h.lumonMemberNames.length > 0 ? h.lumonMemberNames.length : 'Tagged'}</strong>
             </div>
           )}
         </div>
 
         {h.isLumon && h.lumonDescription && (
           <div className="application-queue-note">
-            <strong>Shared household (lumon)</strong>
+            <strong>Lumon note</strong>
             <p>{h.lumonDescription}</p>
           </div>
         )}
         {h.isLumon && Array.isArray(h.lumonMemberNames) && h.lumonMemberNames.length > 0 && (
           <section className="panel panel--highlight">
-            <SectionHeading eyebrow="Lumon membership" title="Included household members" />
+            <SectionHeading eyebrow="Lumon tagging" title="Tagged person records" />
             <div className="hh-lumon-names">
               {h.lumonMemberNames.map((memberName, index) => (
                 <span key={`${memberName}-${index}`} className="hh-lumon-name-pill">{memberName}</span>
@@ -756,16 +746,24 @@ function HouseholdProfileModal({ household, details, onClose }) {
 
         {/* Head of household */}
         <section className="panel panel--highlight">
-          <SectionHeading eyebrow="Head of household" title={headFullName} />
+          <SectionHeading
+            eyebrow="Head of household"
+            title={(
+              <>
+                {headFullName}
+                {isHeadLumonMember ? <span className="hh-lumon-badge">LUMON</span> : null}
+              </>
+            )}
+          />
           <div className="hh-profile-grid">
             <ProfileField label="Date of birth" value={h.headDateOfBirth} />
-            <ProfileField label="Age" value={age ? `${age} years old` : null} />
+            <ProfileField label="Age" value={age ? `${age} years old` : ''} />
             <ProfileField label="Gender" value={h.headGender} />
             <ProfileField label="Civil status" value={h.headCivilStatus} />
             <ProfileField label="Religion" value={h.headReligion} />
             <ProfileField label="Contact number" value={h.headContactNumber} />
             <ProfileField label="Occupation" value={h.headOccupation} />
-            <ProfileField label="Monthly income" value={h.headMonthlyIncome ? `PHP ${Number(h.headMonthlyIncome).toLocaleString()}` : null} />
+            <ProfileField label="Monthly income" value={h.headMonthlyIncome ? `PHP ${Number(h.headMonthlyIncome).toLocaleString()}` : ''} />
             <div className="hh-profile-field">
               <span className="hh-profile-field__label">Income classification</span>
               <IncomeBadge monthlyIncome={h.headMonthlyIncome ?? 0} />
@@ -785,43 +783,53 @@ function HouseholdProfileModal({ household, details, onClose }) {
         <section className="panel">
           <SectionHeading eyebrow="Composition" title={`Family members (${familyMembers.length})`} />
           {familyMembers.length > 0 ? (
-            <div className="hh-profile-members-list">
-              {familyMembers.map((member, index) => {
-                const memberAge = computeAge(member.dateOfBirth);
-                const memberName = formatMemberName(member);
-                const isLumonMember = h.isLumon && lumonMemberKeySet.has(member._id);
-                return (
-                  <div key={member._id || index} className="hh-profile-member-card">
-                    <div className="hh-profile-member-card__header">
-                      <div>
-                        <span className="hh-profile-member-card__number">Member {index + 1}</span>
-                        <strong className="hh-profile-member-card__name">{memberName}</strong>
-                        {isLumonMember ? <span className="hh-lumon-badge">LUMON</span> : null}
-                      </div>
-                      {member.relationship && (
-                        <span className="hh-profile-member-card__rel">{member.relationship}</span>
-                      )}
-                    </div>
-                    <div className="hh-profile-grid">
-                      <ProfileField label="Date of birth" value={member.dateOfBirth} />
-                      <ProfileField label="Age" value={memberAge ? `${memberAge} years old` : null} />
-                      <ProfileField label="Gender" value={member.gender} />
-                      <ProfileField label="Civil status" value={member.civilStatus} />
-                      <ProfileField label="Religion" value={member.religion} />
-                      <ProfileField label="Contact number" value={member.contactNumber} />
-                      <ProfileField label="Occupation" value={member.occupation} />
-                      <ProfileField label="Monthly income" value={member.monthlyIncome ? `PHP ${Number(member.monthlyIncome).toLocaleString()}` : null} />
-                      {(member.monthlyIncome !== '' && member.monthlyIncome != null) && (
-                        <div className="hh-profile-field">
-                          <span className="hh-profile-field__label">Income classification</span>
-                          <IncomeBadge monthlyIncome={member.monthlyIncome ?? 0} />
-                        </div>
-                      )}
-                      <ProfileField label="School / studying" value={member.schoolBackground} />
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="hh-profile-members-table-wrap">
+              <table className="hh-profile-members-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Full name</th>
+                    <th>Relationship</th>
+                    <th>Date of birth</th>
+                    <th>Age</th>
+                    <th>Gender</th>
+                    <th>Civil status</th>
+                    <th>Religion</th>
+                    <th>Contact</th>
+                    <th>Occupation</th>
+                    <th>Monthly income</th>
+                    <th>Income classification</th>
+                    <th>School / studying</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {familyMembers.map((member, index) => {
+                    const memberAge = computeAge(member.dateOfBirth);
+                    const memberName = formatMemberName(member);
+                    const isLumonMember = h.isLumon && lumonMemberKeySet.has(member._id);
+                    return (
+                      <tr key={member._id || index}>
+                        <td className="hh-pmt__num">{index + 1}</td>
+                        <td className="hh-pmt__name">
+                          <strong>{memberName}</strong>
+                          {isLumonMember ? <span className="hh-lumon-badge">LUMON</span> : null}
+                        </td>
+                        <td>{member.relationship || '—'}</td>
+                        <td>{member.dateOfBirth || '—'}</td>
+                        <td>{memberAge ? `${memberAge} yrs` : '—'}</td>
+                        <td>{member.gender || '—'}</td>
+                        <td>{member.civilStatus || '—'}</td>
+                        <td>{member.religion || '—'}</td>
+                        <td>{member.contactNumber || '—'}</td>
+                        <td>{member.occupation || '—'}</td>
+                        <td>{member.monthlyIncome ? `PHP ${Number(member.monthlyIncome).toLocaleString()}` : '—'}</td>
+                        <td><IncomeBadge monthlyIncome={member.monthlyIncome ?? 0} /></td>
+                        <td>{member.schoolBackground || '—'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           ) : (
             <div className="records-history__empty">No family members recorded for this household.</div>
@@ -977,6 +985,20 @@ function HouseholdsPage({ session }) {
   const isBarangayScopedRole = roleKey === 'barangay_secretary' || roleKey === 'barangay_staff';
   const scopedBarangayName = session?.barangayName || '';
 
+  const dashboardFilter = getHashQueryParams(window.location.hash).get('filter');
+  const dashboardRowFilter = (() => {
+    if (dashboardFilter === 'tupad_priority') {
+      return (row) => classifyIncome(row.headMonthlyIncome).tupadPriority;
+    }
+    if (dashboardFilter === 'indigent') {
+      return (row) => classifyIncome(row.headMonthlyIncome).key === 'no_income';
+    }
+    if (dashboardFilter === 'lumon') {
+      return (row) => Boolean(row.isLumon);
+    }
+    return null;
+  })();
+
   useEffect(() => {
     async function init() {
       try {
@@ -1021,8 +1043,7 @@ function HouseholdsPage({ session }) {
           };
         }
         if (name === 'isLumon' && checked) {
-          const nextCount = Number(current.lumonFamilyCount) >= 2 ? current.lumonFamilyCount : '2';
-          return { ...current, isLumon: true, lumonFamilyCount: nextCount };
+          return { ...current, isLumon: true };
         }
         return { ...current, [name]: checked };
       }
@@ -1131,7 +1152,6 @@ function HouseholdsPage({ session }) {
   const openEditModal = (row) => {
     setFormError('');
     setGeoError('');
-    const parsedLumonCount = Number(row.lumonFamilyCount);
     const nextForm = {
       code: row.code,
       barangay: row.barangay,
@@ -1160,9 +1180,7 @@ function HouseholdsPage({ session }) {
           }))
         : [],
       isLumon: row.isLumon || false,
-      lumonFamilyCount: row.isLumon
-        ? String(Number.isFinite(parsedLumonCount) && parsedLumonCount >= 2 ? parsedLumonCount : 2)
-        : '1',
+      lumonFamilyCount: row.lumonFamilyCount || '1',
       lumonDescription: row.lumonDescription || '',
       lumonMemberKeys: Array.isArray(row.lumonMemberKeys) ? row.lumonMemberKeys : [],
       lumonMemberNames: Array.isArray(row.lumonMemberNames) ? row.lumonMemberNames : [],
@@ -1247,8 +1265,12 @@ function HouseholdsPage({ session }) {
     const lumonMemberNames = f.isLumon
       ? deriveLumonMemberNames(lumonChoices, lumonMemberKeys)
       : [];
+    if (f.isLumon && lumonMemberKeys.length === 0) {
+      setFormError('Select at least one person to tag as Lumon.');
+      return;
+    }
     const normalizedLumonFamilyCount = f.isLumon
-      ? String(Math.max(2, Number(f.lumonFamilyCount) || 2))
+      ? String(Math.max(1, lumonMemberKeys.length))
       : '1';
 
     const payload = {
@@ -1340,7 +1362,16 @@ function HouseholdsPage({ session }) {
 
   const columns = [
     { key: 'code', label: 'Code', render: (item) => <strong>{item.code}</strong> },
-    { key: 'head', label: 'Head' },
+    {
+      key: 'head',
+      label: 'Head',
+      getSearchText: (item) => {
+        const memberNames = Array.isArray(item.familyMembers)
+          ? item.familyMembers.map((m) => formatMemberName(m)).join(' ')
+          : '';
+        return [item.head, memberNames].filter(Boolean).join(' ');
+      },
+    },
     { key: 'barangay', label: 'Barangay' },
     {
       key: 'members',
@@ -1348,7 +1379,7 @@ function HouseholdsPage({ session }) {
       render: (item) => (
         <span>
           {item.members}
-          {item.isLumon ? <span className="hh-lumon-badge" title="Lumon household">LUMON</span> : null}
+          {item.isLumon ? <span className="hh-lumon-badge" title="Has Lumon person tags">LUMON</span> : null}
         </span>
       ),
     },
@@ -1426,6 +1457,7 @@ function HouseholdsPage({ session }) {
             }
             initialSortKey="code"
             gridTemplate="1fr 1.35fr 1fr 0.7fr 1.6fr 1.35fr 260px"
+            rowFilter={dashboardRowFilter}
           />
         </section>
       </div>

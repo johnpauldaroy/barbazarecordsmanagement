@@ -575,8 +575,17 @@ function normalizeFileTypeList(value) {
 
 function mapProgramsWithRequirements(programs = [], requirements = []) {
   const requirementsByProgramId = new Map();
+  const archivedProgramIds = new Set(
+    programs
+      .filter((program) => Boolean(program.archived_at))
+      .map((program) => program.id)
+  );
 
   for (const requirement of requirements) {
+    if (requirement.archived_at && !archivedProgramIds.has(requirement.program_id)) {
+      continue;
+    }
+
     const list = requirementsByProgramId.get(requirement.program_id) ?? [];
     list.push(requirement);
     requirementsByProgramId.set(requirement.program_id, list);
@@ -927,7 +936,11 @@ function hasChartDataSignal(chartData = {}) {
       (item) => Number(item.breaches ?? 0) > 0 || Number(item.withinSla ?? 0) > 0
     );
 
-  return monthlyHasSignal || programHasSignal || workloadHasSignal || slaHasSignal;
+  const programAvailHasSignal =
+    (chartData.programAvail?.labels?.length ?? 0) > 0
+    && hasPositiveMetric(chartData.programAvail?.values ?? []);
+
+  return monthlyHasSignal || programHasSignal || programAvailHasSignal || workloadHasSignal || slaHasSignal;
 }
 
 function buildDemoHouseholdDetails(code, row) {
@@ -975,6 +988,112 @@ function getDemoBarangayCoordinate(name) {
 
 function normalizeProgramDisplayName(programRow = {}) {
   return programRow?.name || programRow?.code || 'Other social program';
+}
+
+function calculateDaysSince(dateStr) {
+  const timestamp = new Date(dateStr).getTime();
+  if (!Number.isFinite(timestamp)) {
+    return null;
+  }
+
+  const diffMs = Date.now() - timestamp;
+  return Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+}
+
+function parseDurationHours(value) {
+  const match = String(value).match(/^(\d+)([hd])$/i);
+  if (!match) {
+    return 0;
+  }
+
+  const [, amount, unit] = match;
+  return unit.toLowerCase() === 'd' ? Number(amount) * 24 : Number(amount);
+}
+
+function formatDaysDelayed(days) {
+  if (days == null) {
+    return 'No date submitted';
+  }
+
+  return `${days} day${days === 1 ? '' : 's'} delayed`;
+}
+
+function isProgramEnabled(programRow = {}) {
+  if (!programRow) {
+    return false;
+  }
+
+  return normalizeText(programRow?.status || 'active') === 'active' && !programRow?.archived_at;
+}
+
+async function isProgramCodeEnabled(programCode) {
+  const { data, error } = await supabase
+    .from('social_programs')
+    .select('status, archived_at')
+    .eq('code', programCode)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data ? isProgramEnabled(data) : false;
+}
+
+async function getEnabledProgramLookup() {
+  const { data, error } = await supabase
+    .from('social_programs')
+    .select('code, name, status, archived_at')
+    .eq('status', 'active')
+    .is('archived_at', null);
+
+  if (error) {
+    throw error;
+  }
+
+  const lookup = new Set();
+  for (const program of data ?? []) {
+    if (program.code) {
+      lookup.add(normalizeText(program.code));
+    }
+    if (program.name) {
+      lookup.add(normalizeText(program.name));
+    }
+  }
+
+  return lookup;
+}
+
+async function getEnabledMapLegendKeys() {
+  const { data, error } = await supabase
+    .from('social_programs')
+    .select('code, name')
+    .eq('status', 'active')
+    .is('archived_at', null);
+
+  if (error) {
+    throw error;
+  }
+
+  const keys = new Set();
+  for (const program of data ?? []) {
+    const code = normalizeText(program.code);
+    const name = normalizeText(program.name);
+
+    if (code === '4ps_monitoring' || name.includes('4ps') || name.includes('pantawid')) {
+      keys.add('fourps');
+    }
+
+    if (code === 'aics' || name.includes('aics') || name.includes('assistance to individuals')) {
+      keys.add('aics');
+    }
+
+    if (code === 'tupad' || name.includes('tupad') || name.includes('tulong panghanapbuhay')) {
+      keys.add('tupad');
+    }
+  }
+
+  return ['fourps', 'aics', 'tupad'].filter((key) => keys.has(key));
 }
 
 function buildDemoHouseholdProgramMapRows() {
@@ -1043,6 +1162,7 @@ function buildDemoHouseholdProgramMapRows() {
   return {
     rows,
     missingCoordinates: [],
+    legendKeys: ['fourps', 'aics', 'tupad'],
     scope: {
       isScoped: Boolean(scope.isScopedRole),
       barangayName: scope.barangayName || null,
@@ -1268,6 +1388,20 @@ async function getProgramRequirements(programId) {
   return data ?? [];
 }
 
+async function getProgramRequirementsForCatalog(programId) {
+  const { data, error } = await supabase
+    .from('program_requirements')
+    .select('id, requirement_code, label, description, document_group, is_required, is_for_household, allowed_file_types, max_file_size_mb, sort_order, archived_at')
+    .eq('program_id', programId)
+    .order('sort_order', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return data ?? [];
+}
+
 async function getProgramsWithRequirements() {
   const [{ data: programs, error: programError }, { data: requirements, error: requirementError }] = await Promise.all([
     supabase
@@ -1461,17 +1595,37 @@ export const supabaseService = {
 
         const rows = filterRowsByScopedBarangay(data ?? [], (row) => row.barangay_name);
 
-        return rows.map((application) => ({
-          reference: application.application_no,
-          applicant: application.applicant_name || 'Unknown applicant',
-          barangay: application.barangay_name || 'Unknown barangay',
-          program: application.program_names || 'Unassigned',
-          status: formatStatusLabel(application.current_status),
-          tone: statusTone(application.current_status),
-          age: this.calculateAge(application.last_status_at || application.submitted_at),
-        }));
+        return rows.map((application) => {
+          const submittedDate = application.submitted_at ? new Date(application.submitted_at) : null;
+          const daysDelayed = calculateDaysSince(application.submitted_at);
+
+          return {
+            reference: application.application_no,
+            applicant: application.applicant_name || 'Unknown applicant',
+            barangay: application.barangay_name || 'Unknown barangay',
+            program: application.program_names || 'Unassigned',
+            status: formatStatusLabel(application.current_status),
+            tone: statusTone(application.current_status),
+            submittedAt: submittedDate ? submittedDate.toLocaleDateString('en-PH') : '—',
+            daysDelayed,
+            daysDelayedLabel: formatDaysDelayed(daysDelayed),
+            submittedAtRaw: application.submitted_at || '',
+            age: this.calculateAge(application.last_status_at || application.submitted_at),
+          };
+        });
       },
-      demoData.applicationQueue,
+      () => demoData.applicationQueue.map((application) => {
+        const hoursSinceSubmission = parseDurationHours(application.age);
+        const daysDelayed = Math.floor(hoursSinceSubmission / 24);
+        const submittedDate = new Date(Date.now() - hoursSinceSubmission * 60 * 60 * 1000);
+        return {
+          ...application,
+          submittedAtRaw: submittedDate.toISOString(),
+          submittedAt: submittedDate.toLocaleDateString('en-PH'),
+          daysDelayed,
+          daysDelayedLabel: formatDaysDelayed(daysDelayed),
+        };
+      }),
       'Failed to load the application queue.'
     );
   },
@@ -2170,7 +2324,7 @@ export const supabaseService = {
           code: household.household_code,
           head: household.household_name || 'Registered household',
           barangay: household.barangay?.name || 'Unknown barangay',
-          members: String(household.household_size ?? 1),
+          members: String(1 + familyMembers.length),
           purokSitio: household.purok_sitio || '',
           addressLine1: household.address_line1 || '',
           latitude: normalizeCoordinate(household.latitude),
@@ -2515,7 +2669,7 @@ export const supabaseService = {
             familyMembers,
             isFourPsQualified: fourPs.isQualified,
             fourPsQualifyingChildren: fourPs.qualifyingChildrenCount,
-            totalMembers: Number(household.household_size ?? (1 + familyMembers.length)),
+            totalMembers: 1 + familyMembers.length,
             openCases,
             isLumon: Boolean(household.is_lumon),
             lumonFamilyCount: String(household.lumon_family_count ?? 1),
@@ -2578,17 +2732,23 @@ export const supabaseService = {
           householdQuery = householdQuery.eq('barangay_id', scope.barangayId);
         }
 
-        const { data: householdRows, error: householdError } = await householdQuery;
+        const [{ data: householdRows, error: householdError }, legendKeys] = await Promise.all([
+          householdQuery,
+          getEnabledMapLegendKeys(),
+        ]);
 
         if (householdError) {
           throw householdError;
         }
+
+        const fourPsEnabled = legendKeys.includes('fourps');
 
         const scopedRows = filterRowsByScopedBarangay(householdRows ?? [], (row) => row?.barangay?.name);
         if (!scopedRows.length) {
           return {
             rows: [],
             missingCoordinates: [],
+            legendKeys,
             scope: {
               isScoped: Boolean(scope.isScopedRole),
               barangayName: scope.barangayName || null,
@@ -2600,7 +2760,7 @@ export const supabaseService = {
         const [assistanceResult, applicationResult] = await Promise.all([
           supabase
             .from('assistance_records')
-            .select('household_id, status, program:social_programs(code, name)')
+            .select('household_id, status, program:social_programs(code, name, status, archived_at)')
             .in('household_id', householdIds)
             .is('archived_at', null)
             .in('status', ['approved', 'released']),
@@ -2611,7 +2771,7 @@ export const supabaseService = {
               current_status,
               application_programs(
                 decision_status,
-                program:social_programs(code, name)
+                program:social_programs(code, name, status, archived_at)
               )
             `)
             .in('household_id', householdIds)
@@ -2631,6 +2791,10 @@ export const supabaseService = {
 
         for (const record of assistanceResult.data ?? []) {
           const householdId = record.household_id;
+          if (!isProgramEnabled(record.program)) {
+            continue;
+          }
+
           const programName = normalizeProgramDisplayName(record.program);
           if (!householdId || !programName) {
             continue;
@@ -2654,6 +2818,10 @@ export const supabaseService = {
 
           const bucket = programsByHouseholdId.get(householdId) ?? new Set();
           for (const programRow of programs) {
+            if (!isProgramEnabled(programRow?.program)) {
+              continue;
+            }
+
             const decisionStatus = normalizeWorkflowStatus(programRow?.decision_status || application.current_status);
             if (!['approved', 'released'].includes(decisionStatus)) {
               continue;
@@ -2676,7 +2844,7 @@ export const supabaseService = {
             familyMembers: household.family_members,
           });
           const programSet = new Set(programsByHouseholdId.get(household.id) ?? []);
-          if (fourPs.isQualified) {
+          if (fourPsEnabled && fourPs.isQualified) {
             programSet.add('4Ps (Qualified)');
           }
           const programs = [...programSet].sort((left, right) =>
@@ -2716,6 +2884,7 @@ export const supabaseService = {
         return {
           rows,
           missingCoordinates,
+          legendKeys,
           scope: {
             isScoped: Boolean(scope.isScopedRole),
             barangayName: scope.barangayName || null,
@@ -3145,7 +3314,7 @@ export const supabaseService = {
           ? { filter_barangay_id: scope.barangayId }
           : {};
 
-        const [applicationRows, breakdownRows] = await Promise.all([
+        const [applicationRows, breakdownRows, enabledProgramLookup, programAvailResult] = await Promise.all([
           getApplicationAnalyticsRows(),
           supabase.rpc('beneficiary_breakdown_by_program', breakdownParams).then(({ data, error }) => {
             if (error) {
@@ -3154,13 +3323,60 @@ export const supabaseService = {
 
             return data ?? [];
           }),
+          getEnabledProgramLookup(),
+          (() => {
+            let q = supabase
+              .from('applications')
+              .select(`
+                id,
+                household_id,
+                barangay_id,
+                application_programs(
+                  program:social_programs(name, code, status, archived_at)
+                )
+              `)
+              .is('archived_at', null)
+              .neq('current_status', 'draft');
+            if (scope.isScopedRole && scope.barangayId) {
+              q = q.eq('barangay_id', scope.barangayId);
+            }
+            return q.then(({ data, error }) => {
+              if (error) throw error;
+              return data ?? [];
+            });
+          })(),
         ]);
+
+        // Count distinct households per active program
+        const programAvailCounts = new Map();
+        for (const app of programAvailResult) {
+          for (const ap of app.application_programs ?? []) {
+            const prog = ap.program;
+            if (!prog || prog.archived_at || prog.status !== 'active') continue;
+            const key = prog.name || prog.code;
+            const householdSet = programAvailCounts.get(key) ?? new Set();
+            householdSet.add(app.household_id ?? app.id);
+            programAvailCounts.set(key, householdSet);
+          }
+        }
+        const programAvailEntries = [...programAvailCounts.entries()]
+          .map(([name, householdSet]) => [name, householdSet.size])
+          .sort((a, b) => b[1] - a[1]);
+
+        const visibleBreakdownRows = breakdownRows.filter((row) => (
+          enabledProgramLookup.has(normalizeText(row.program_code))
+          || enabledProgramLookup.has(normalizeText(row.program_name))
+        ));
 
         const chartData = {
           monthlyApprovals: buildMonthlyApprovals(applicationRows),
           programBreakdown: {
-            labels: breakdownRows.map((row) => row.program_name || row.program_code),
-            values: breakdownRows.map((row) => Number(row.beneficiary_households ?? 0)),
+            labels: visibleBreakdownRows.map((row) => row.program_name || row.program_code),
+            values: visibleBreakdownRows.map((row) => Number(row.beneficiary_households ?? 0)),
+          },
+          programAvail: {
+            labels: programAvailEntries.map(([name]) => name),
+            values: programAvailEntries.map(([, count]) => count),
           },
           workloadByBarangay: buildWorkloadByBarangay(applicationRows),
           slaTrend: buildSlaTrend(applicationRows),
@@ -3170,10 +3386,8 @@ export const supabaseService = {
           if (scope.isScopedRole) {
             return {
               monthlyApprovals: buildMonthlyApprovals([]),
-              programBreakdown: {
-                labels: [],
-                values: [],
-              },
+              programBreakdown: { labels: [], values: [] },
+              programAvail: { labels: [], values: [] },
               workloadByBarangay: scope.barangayName
                 ? [{ barangay: scope.barangayName, pending: 0, approved: 0 }]
                 : [],
@@ -3183,10 +3397,8 @@ export const supabaseService = {
 
           return {
             monthlyApprovals: buildMonthlyApprovals([]),
-            programBreakdown: {
-              labels: [],
-              values: [],
-            },
+            programBreakdown: { labels: [], values: [] },
+            programAvail: { labels: [], values: [] },
             workloadByBarangay: [],
             slaTrend: buildSlaTrend([]),
           };
@@ -3197,6 +3409,10 @@ export const supabaseService = {
       {
         monthlyApprovals: demoData.monthlyApprovals,
         programBreakdown: demoData.programBreakdown,
+        programAvail: {
+          labels: demoData.applicationsByProgram.map((row) => row.program),
+          values: demoData.applicationsByProgram.map((row) => row.total),
+        },
         workloadByBarangay: demoData.workloadByBarangay,
         slaTrend: demoData.slaTrend,
       },
@@ -3313,7 +3529,20 @@ export const supabaseService = {
           householdsQuery = householdsQuery.eq('barangay_id', scope.barangayId);
         }
 
-        const { data, error } = await householdsQuery;
+        let householdsWithGenderQuery = supabase
+          .from('households')
+          .select('head_gender, family_members')
+          .is('archived_at', null);
+
+        if (scope.isScopedRole) {
+          householdsWithGenderQuery = householdsWithGenderQuery.eq('barangay_id', scope.barangayId);
+        }
+
+        const [{ data, error }, tupadProgramEnabled, { data: genderRows }] = await Promise.all([
+          householdsQuery,
+          isProgramCodeEnabled('TUPAD'),
+          householdsWithGenderQuery,
+        ]);
 
         if (error) {
           throw error;
@@ -3349,7 +3578,7 @@ export const supabaseService = {
           }
         }
 
-        const tupadPriority = tierCounts.no_income + tierCounts.low_income;
+        const tupadPriority = tupadProgramEnabled ? tierCounts.no_income + tierCounts.low_income : 0;
         const total = totalHouseholds || 1;
 
         const classificationBreakdown = [
@@ -3381,23 +3610,39 @@ export const supabaseService = {
           ).size;
         }
 
+        const genderCounts = { male: 0, female: 0, other: 0 };
+        const countGender = (value) => {
+          const s = String(value ?? '').trim().toLowerCase();
+          if (s === 'male' || s === 'm') genderCounts.male += 1;
+          else if (s === 'female' || s === 'f') genderCounts.female += 1;
+          else if (s) genderCounts.other += 1;
+        };
+        for (const hh of genderRows ?? []) {
+          countGender(hh.head_gender);
+          const members = normalizeFamilyMembers(hh.family_members);
+          for (const m of members) countGender(m.gender);
+        }
+
         return {
           summary: {
             totalResidents,
             totalHouseholds,
             tupadPriorityHouseholds: tupadPriority,
+            tupadProgramEnabled,
             indigentHouseholds: tierCounts.no_income,
             lumonHouseholds,
             householdsWithActiveCases,
           },
           classificationBreakdown,
           lowIncomeByBarangay,
+          genderBreakdown: genderCounts,
         };
       },
       {
         summary: demoData.householdRegistrySummary,
         classificationBreakdown: demoData.incomeClassificationBreakdown,
         lowIncomeByBarangay: demoData.lowIncomeByBarangay,
+        genderBreakdown: demoData.genderBreakdown ?? { male: 0, female: 0, other: 0 },
       },
       'Failed to load household analytics.'
     );
@@ -3425,7 +3670,7 @@ export const supabaseService = {
           .from('application_programs')
           .select(`
             decision_status,
-            program:social_programs(name, code),
+            program:social_programs(name, code, status, archived_at),
             application:applications!inner(current_status, barangay_id, archived_at, barangay:barangays(name))
           `);
 
@@ -3445,6 +3690,10 @@ export const supabaseService = {
         const programMap = {};
 
         for (const row of scopedRows) {
+          if (!isProgramEnabled(row.program)) {
+            continue;
+          }
+
           const programName = row.program?.name || row.program?.code || 'Other';
           if (!programMap[programName]) {
             programMap[programName] = { program: programName, total: 0, pending: 0, approved: 0, released: 0 };
@@ -3528,9 +3777,9 @@ export const supabaseService = {
               requires_review,
               max_active_applications_per_household,
               allow_multiple_household_beneficiaries,
-              sort_order
+              sort_order,
+              archived_at
             `)
-            .is('archived_at', null)
             .order('sort_order', { ascending: true })
             .order('name', { ascending: true }),
           supabase
@@ -3546,9 +3795,9 @@ export const supabaseService = {
               is_for_household,
               allowed_file_types,
               max_file_size_mb,
-              sort_order
+              sort_order,
+              archived_at
             `)
-            .is('archived_at', null)
             .order('sort_order', { ascending: true }),
         ]);
 
@@ -3576,7 +3825,7 @@ export const supabaseService = {
         category: programConfig.category.trim(),
         description: programConfig.description?.trim() || '',
         eligibility_summary: programConfig.eligibilitySummary?.trim() || '',
-        status: programConfig.status || 'draft',
+        status: programConfig.status === 'active' ? 'active' : 'inactive',
         requires_review: Boolean(programConfig.requiresReview),
         max_active_applications_per_household: Number(programConfig.maxActiveApplicationsPerHousehold) || 1,
         allow_multiple_household_beneficiaries: Boolean(programConfig.allowMultipleHouseholdBeneficiaries),
@@ -3607,7 +3856,8 @@ export const supabaseService = {
       category: programConfig.category.trim(),
       description: programConfig.description?.trim() || null,
       eligibility_summary: programConfig.eligibilitySummary?.trim() || null,
-      status: programConfig.status || 'draft',
+      status: programConfig.status === 'active' ? 'active' : 'inactive',
+      archived_at: null,
       requires_review: Boolean(programConfig.requiresReview),
       max_active_applications_per_household: Math.max(1, Number(programConfig.maxActiveApplicationsPerHousehold) || 1),
       allow_multiple_household_beneficiaries: Boolean(programConfig.allowMultipleHouseholdBeneficiaries),
@@ -3640,7 +3890,6 @@ export const supabaseService = {
         .from('social_programs')
         .update(normalizedProgram)
         .eq('id', programConfig.id)
-        .is('archived_at', null)
         .select('id, code')
         .single();
 
@@ -3663,7 +3912,7 @@ export const supabaseService = {
       savedProgram = data;
     }
 
-    const existingRequirements = await getProgramRequirements(savedProgram.id);
+    const existingRequirements = await getProgramRequirementsForCatalog(savedProgram.id);
     const retainedRequirementIds = [];
 
     for (const requirement of normalizedRequirements) {
@@ -3680,10 +3929,10 @@ export const supabaseService = {
             allowed_file_types: requirement.allowed_file_types,
             max_file_size_mb: requirement.max_file_size_mb,
             sort_order: requirement.sort_order,
+            archived_at: null,
           })
           .eq('id', requirement.id)
-          .eq('program_id', savedProgram.id)
-          .is('archived_at', null);
+          .eq('program_id', savedProgram.id);
 
         if (error) {
           throw error;
@@ -3737,7 +3986,7 @@ export const supabaseService = {
     return catalog.find((program) => program.id === savedProgram.id) ?? null;
   },
 
-  async archiveProgram(programId) {
+  async setProgramEnabled(programId, enabled) {
     if (USE_DEMO) {
       return { success: true };
     }
@@ -3746,12 +3995,11 @@ export const supabaseService = {
       throw new Error('Supabase environment variables are missing. Restart the app after updating `.env.local`.');
     }
 
-    const archivedAt = new Date().toISOString();
     const { error: programError } = await supabase
       .from('social_programs')
       .update({
-        status: 'archived',
-        archived_at: archivedAt,
+        status: enabled ? 'active' : 'inactive',
+        archived_at: null,
       })
       .eq('id', programId);
 
@@ -3759,14 +4007,15 @@ export const supabaseService = {
       throw programError;
     }
 
-    const { error: requirementError } = await supabase
-      .from('program_requirements')
-      .update({ archived_at: archivedAt })
-      .eq('program_id', programId)
-      .is('archived_at', null);
+    if (enabled) {
+      const { error: requirementError } = await supabase
+        .from('program_requirements')
+        .update({ archived_at: null })
+        .eq('program_id', programId);
 
-    if (requirementError) {
-      throw requirementError;
+      if (requirementError) {
+        throw requirementError;
+      }
     }
 
     return { success: true };
@@ -4176,7 +4425,8 @@ export const supabaseService = {
           const lastDate = row.last_status_at ? new Date(row.last_status_at) : null;
           const now = new Date();
           const diffHours = lastDate ? Math.floor((now - lastDate) / 3600000) : null;
-          const age = diffHours === null ? '—'
+          const daysDelayed = calculateDaysSince(row.submitted_at);
+          const age = diffHours == null ? '-'
             : diffHours < 24 ? `${diffHours}h`
             : `${Math.floor(diffHours / 24)}d`;
 
@@ -4189,15 +4439,26 @@ export const supabaseService = {
             rawStatus: row.current_status,
             tone: statusTone(row.current_status),
             submittedAt: submittedDate ? submittedDate.toLocaleDateString('en-PH') : '—',
+            submittedAtRaw: row.submitted_at || '',
+            daysDelayed,
+            daysDelayedLabel: formatDaysDelayed(daysDelayed),
             age,
           };
         });
       },
-      () => demoData.applicationQueue.map((row) => ({
-        ...row,
-        rawStatus: 'submitted',
-        submittedAt: new Date().toLocaleDateString('en-PH'),
-      })),
+      () => demoData.applicationQueue.map((row) => {
+        const hoursSinceSubmission = parseDurationHours(row.age);
+        const daysDelayed = Math.floor(hoursSinceSubmission / 24);
+        const submittedDate = new Date(Date.now() - hoursSinceSubmission * 60 * 60 * 1000);
+        return {
+          ...row,
+          rawStatus: 'submitted',
+          submittedAtRaw: submittedDate.toISOString(),
+          submittedAt: submittedDate.toLocaleDateString('en-PH'),
+          daysDelayed,
+          daysDelayedLabel: formatDaysDelayed(daysDelayed),
+        };
+      }),
       'Failed to load applications report.'
     );
   },

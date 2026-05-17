@@ -205,8 +205,8 @@ const APP_COLUMNS = [
   { key: 'program',   header: 'Program', width: '160px' },
   { key: 'status',    header: 'Status', width: '150px', sortable: false,
     render: (row) => <StatusPill status={row.rawStatus} label={row.status} /> },
-  { key: 'submittedAt', header: 'Submitted', width: '110px' },
-  { key: 'age',       header: 'Age', width: '70px', align: 'center' },
+  { key: 'submittedAt', header: 'Date submitted', width: '120px' },
+  { key: 'daysDelayedLabel', header: 'Days delayed', width: '120px', align: 'center' },
 ];
 
 const APP_EXPORT_COLS = [
@@ -216,7 +216,7 @@ const APP_EXPORT_COLS = [
   { key: 'program',     header: 'Program' },
   { key: 'status',      header: 'Status' },
   { key: 'submittedAt', header: 'Date Submitted' },
-  { key: 'age',         header: 'Age' },
+  { key: 'daysDelayedLabel', header: 'Days Delayed' },
 ];
 
 function ApplicationsTab({ rows, isBarangayScoped, scopedBarangayName }) {

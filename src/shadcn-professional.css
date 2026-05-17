@@ -1852,6 +1852,76 @@ input[name='address'][readonly] {
   gap: 0.88rem;
 }
 
+.dashboard-program-gender-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.dashboard-program-avail-section {
+  animation: dashboard-fade-up 260ms var(--ui-ease);
+}
+
+.dashboard-program-avail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 200px;
+  gap: 1.25rem;
+  align-items: center;
+  margin-top: 0.75rem;
+}
+
+.dashboard-program-avail-chart {
+  height: 200px;
+}
+
+.dashboard-program-avail-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.5rem 0;
+}
+
+.dashboard-program-avail-legend__item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.dashboard-program-avail-legend__dot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.dashboard-program-avail-legend__name {
+  flex: 1;
+  color: var(--ui-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dashboard-program-avail-legend__count {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ui-text);
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .dashboard-program-avail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-program-avail-legend {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
+
 .dashboard-chart-panel {
   height: 100%;
   transition:
@@ -3696,6 +3766,69 @@ body {
   background: var(--ui-surface-muted);
 }
 
+/* ── Member full-detail table in profile modal ──────────────────────────── */
+
+.hh-profile-members-table-wrap {
+  margin-top: 0.75rem;
+  overflow-x: auto;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--radius, 0.5rem);
+}
+
+.hh-profile-members-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.hh-profile-members-table thead tr {
+  background: var(--ui-bg-2);
+}
+
+.hh-profile-members-table th {
+  padding: 0.55rem 0.75rem;
+  text-align: left;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ui-text-soft);
+  border-bottom: 1px solid var(--ui-border);
+  white-space: nowrap;
+}
+
+.hh-profile-members-table td {
+  padding: 0.6rem 0.75rem;
+  color: var(--ui-text);
+  border-bottom: 1px solid var(--ui-border);
+  vertical-align: middle;
+}
+
+.hh-profile-members-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.hh-profile-members-table tbody tr:hover {
+  background: var(--ui-surface-muted, #f8fafc);
+}
+
+.hh-pmt__num {
+  color: var(--ui-text-soft);
+  font-weight: 600;
+  width: 2rem;
+  text-align: center;
+}
+
+.hh-pmt__name {
+  min-width: 10rem;
+}
+
+.hh-pmt__name strong {
+  display: block;
+  font-weight: 600;
+}
+
 /* ── Member detail cards in profile modal ───────────────────────────────── */
 
 .hh-profile-members-list {
@@ -3854,11 +3987,17 @@ body {
 .dashboard-registry-card-link {
   text-decoration: none;
   display: block;
+  cursor: pointer;
 }
 
 .dashboard-registry-card-link:hover .dashboard-registry-card {
   box-shadow: var(--ui-shadow-sm);
   border-color: var(--ui-primary);
+}
+
+.dashboard-registry-card-link:focus-visible .dashboard-registry-card {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 2px;
 }
 
 .dashboard-registry-card__value {
@@ -3893,6 +4032,80 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
+}
+
+/* ── Gender breakdown pie chart ─────────────────────────────────────────── */
+
+.dashboard-gender-section {
+  animation: dashboard-fade-up 260ms var(--ui-ease);
+}
+
+.dashboard-gender-grid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.dashboard-gender-chart {
+  width: 160px;
+  height: 160px;
+  flex-shrink: 0;
+}
+
+.dashboard-gender-legend {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dashboard-gender-legend__item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+}
+
+.dashboard-gender-legend__dot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.dashboard-gender-legend__label {
+  flex: 1;
+  color: var(--ui-text-muted);
+}
+
+.dashboard-gender-legend__count {
+  font-weight: 700;
+  color: var(--ui-text);
+}
+
+.dashboard-gender-legend__pct {
+  font-size: 0.75rem;
+  color: var(--ui-text-soft);
+  min-width: 2rem;
+  text-align: right;
+}
+
+.dashboard-gender-legend__total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.25rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--ui-border);
+  font-size: 0.8rem;
+  color: var(--ui-text-muted);
+}
+
+.dashboard-gender-legend__total strong {
+  color: var(--ui-text);
+  font-weight: 700;
 }
 
 /* ── Income Classification panel ────────────────────────────────────────── */

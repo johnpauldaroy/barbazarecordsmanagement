@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import DashboardCharts from '../components/DashboardCharts';
+import DashboardCharts, { GenderPieChart, ProgramAvailChart } from '../components/DashboardCharts';
 import InteractiveTable from '../components/InteractiveTable';
 import SectionHeading from '../components/SectionHeading';
 import StatCard from '../components/StatCard';
@@ -44,7 +44,7 @@ function RegistryKpiCard({ label, value, sub, tone, href }) {
     : inner;
 }
 
-function IncomeClassificationPanel({ breakdown }) {
+function IncomeClassificationPanel({ breakdown, tupadEnabled = true }) {
   if (!breakdown?.length) return null;
   const total = breakdown.reduce((sum, tier) => sum + tier.count, 0) || 1;
   const tupadCount = breakdown
@@ -56,20 +56,23 @@ function IncomeClassificationPanel({ breakdown }) {
       <SectionHeading
         eyebrow="Targeting"
         title="Income classification"
-        description="Household distribution by monthly income of head. TUPAD priority: No Income and Low Income tiers."
+        description={tupadEnabled
+          ? 'Household distribution by monthly income of head. TUPAD priority: No Income and Low Income tiers.'
+          : 'Household distribution by monthly income of head.'}
       />
 
-      {/* TUPAD highlight */}
-      <div className="dashboard-tupad-highlight">
-        <div className="dashboard-tupad-highlight__number">{tupadCount}</div>
-        <div className="dashboard-tupad-highlight__text">
-          <strong>TUPAD priority households</strong>
-          <span>No Income + Low Income &mdash; {Math.round((tupadCount / total) * 100)}% of registry</span>
+      {tupadEnabled ? (
+        <div className="dashboard-tupad-highlight">
+          <div className="dashboard-tupad-highlight__number">{tupadCount}</div>
+          <div className="dashboard-tupad-highlight__text">
+            <strong>TUPAD priority households</strong>
+            <span>No Income + Low Income &mdash; {Math.round((tupadCount / total) * 100)}% of registry</span>
+          </div>
+          <a href="#/households" className="dashboard-tupad-highlight__link">
+            View households &rarr;
+          </a>
         </div>
-        <a href="#/households" className="dashboard-tupad-highlight__link">
-          View households &rarr;
-        </a>
-      </div>
+      ) : null}
 
       {/* Tier breakdown bars */}
       <div className="dashboard-income-tiers">
@@ -85,7 +88,7 @@ function IncomeClassificationPanel({ breakdown }) {
                 />
                 <span className="dashboard-income-tier-row__label">
                   {tier.label}
-                  {tier.tupadPriority && (
+                  {tupadEnabled && tier.tupadPriority && (
                     <span className="dashboard-tupad-tag">TUPAD</span>
                   )}
                 </span>
@@ -107,7 +110,7 @@ function IncomeClassificationPanel({ breakdown }) {
   );
 }
 
-function LowIncomeRankingPanel({ ranking }) {
+function LowIncomeRankingPanel({ ranking, tupadEnabled = true }) {
   if (!ranking?.length) return null;
   const maxTotal = Math.max(...ranking.map((r) => r.total), 1);
 
@@ -116,7 +119,9 @@ function LowIncomeRankingPanel({ ranking }) {
       <SectionHeading
         eyebrow="Priority ranking"
         title="Low income households by barangay"
-        description="Barangays ranked by combined No Income + Low Income household count - TUPAD targeting priority."
+        description={tupadEnabled
+          ? 'Barangays ranked by combined No Income + Low Income household count - TUPAD targeting priority.'
+          : 'Barangays ranked by combined No Income + Low Income household count.'}
       />
       <div className="dashboard-ranking-list">
         {ranking.map((item, index) => (
@@ -227,6 +232,7 @@ function DashboardPage({ session }) {
   }
 
   const summary = householdAnalytics?.summary;
+  const tupadEnabled = summary?.tupadProgramEnabled !== false;
   const hasErrors = Object.keys(sectionErrors).length > 0;
   const queueStats = isBarangayScopedRole
     ? stats.filter((card) => card.label !== 'Unserved households')
@@ -259,25 +265,30 @@ function DashboardPage({ session }) {
               value={summary.totalResidents.toLocaleString()}
               sub="Total members across all households"
               tone="accent"
+              href="#/households"
             />
             <RegistryKpiCard
               label="Registered households"
               value={summary.totalHouseholds.toLocaleString()}
               sub="Active household records"
               tone="default"
-            />
-            <RegistryKpiCard
-              label="TUPAD priority"
-              value={summary.tupadPriorityHouseholds.toLocaleString()}
-              sub="No Income + Low Income households"
-              tone="warning"
               href="#/households"
             />
+            {tupadEnabled ? (
+              <RegistryKpiCard
+                label="TUPAD priority"
+                value={summary.tupadPriorityHouseholds.toLocaleString()}
+                sub="No Income + Low Income households"
+                tone="warning"
+                href="#/households?filter=tupad_priority"
+              />
+            ) : null}
             <RegistryKpiCard
               label="Indigent (no income)"
               value={summary.indigentHouseholds.toLocaleString()}
-              sub="Highest TUPAD priority"
+              sub={tupadEnabled ? 'Highest TUPAD priority' : 'No monthly income recorded'}
               tone="danger"
+              href="#/households?filter=indigent"
             />
             <RegistryKpiCard
               label="Active cases"
@@ -289,8 +300,9 @@ function DashboardPage({ session }) {
             <RegistryKpiCard
               label="Lumon households"
               value={summary.lumonHouseholds?.toLocaleString() ?? '—'}
-              sub="Multiple families sharing one address"
+              sub="Households with person-level Lumon tags"
               tone="neutral"
+              href="#/households?filter=lumon"
             />
           </div>
         </section>
@@ -298,13 +310,9 @@ function DashboardPage({ session }) {
 
       {/* â"€â"€ Income Classification + Low Income Ranking â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
       <div className="dashboard-analytics-row">
-        <IncomeClassificationPanel breakdown={householdAnalytics?.classificationBreakdown} />
-        <LowIncomeRankingPanel ranking={householdAnalytics?.lowIncomeByBarangay} />
+        <IncomeClassificationPanel breakdown={householdAnalytics?.classificationBreakdown} tupadEnabled={tupadEnabled} />
+        <LowIncomeRankingPanel ranking={householdAnalytics?.lowIncomeByBarangay} tupadEnabled={tupadEnabled} />
       </div>
-
-      {/* â"€â"€ Application Status Summary â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
-
-      {/* â"€â"€ Applications by Program â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
 
       {/* â"€â"€ Application Queue KPIs â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
       <section className="panel dashboard-kpi-section">
@@ -322,6 +330,12 @@ function DashboardPage({ session }) {
           ))}
         </div>
       </section>
+
+      {/* â"€â"€ Program Avail Chart + Gender breakdown â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
+      <div className="dashboard-program-gender-row">
+        <ProgramAvailChart programAvail={charts?.programAvail} />
+        <GenderPieChart genderBreakdown={householdAnalytics?.genderBreakdown} />
+      </div>
 
       {/* â"€â"€ Trend Charts â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
       {charts ? <DashboardCharts data={charts} drilldowns={CHART_DRILLDOWNS} /> : null}
@@ -347,4 +361,3 @@ function DashboardPage({ session }) {
 }
 
 export default DashboardPage;
-

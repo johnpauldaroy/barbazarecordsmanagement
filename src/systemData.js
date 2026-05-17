@@ -687,8 +687,8 @@ export const householdRows = [
       },
     ],
     isLumon: true,
-    lumonFamilyCount: '2',
-    lumonDescription: 'Ignacio family (main), Mario Ignacio family (son, 2nd floor)',
+    lumonFamilyCount: '3',
+    lumonDescription: 'Person-level Lumon tags: Rosa B. Ignacio, Mario Ignacio, and Celia Ignacio.',
     lumonMemberKeys: ['__head__', 'hh-bad-m2', 'hh-bad-m3'],
     lumonMemberNames: [
       'Rosa B. Ignacio (Head)',
@@ -767,8 +767,8 @@ export const householdRows = [
       },
     ],
     isLumon: true,
-    lumonFamilyCount: '3',
-    lumonDescription: 'Tajan family (main), Renato & Marivic family (son), Nena Pascua (elderly relative, annexed room)',
+    lumonFamilyCount: '4',
+    lumonDescription: 'Person-level Lumon tags: Josephine Tajan, Renato Tajan, Marivic Tajan, and Nena Pascua.',
     lumonMemberKeys: ['__head__', 'hh-alo-m1', 'hh-alo-m2', 'hh-alo-m3'],
     lumonMemberNames: [
       'Josephine L. Tajan (Head)',
@@ -1074,6 +1074,12 @@ export const incomeClassificationBreakdown = [
   { key: 'moderate',        label: 'Moderate Income',      count: 178, percentage: 43 },
   { key: 'above_moderate',  label: 'Above Moderate',       count: 96,  percentage: 23 },
 ];
+
+export const genderBreakdown = {
+  male: 911,
+  female: 936,
+  other: 0,
+};
 
 export const applicationsByProgram = [
   { program: 'AICS',         total: 214, pending: 48, approved: 124, released: 42 },

@@ -864,9 +864,15 @@ function ApplicationsPage({ session }) {
       render: (item) => <StatusPill status={item.status} tone={item.tone} />,
     },
     {
-      key: 'age',
-      label: 'Age',
-      getSortValue: (item) => parseAgeHours(item.age),
+      key: 'submittedAt',
+      label: 'Date submitted',
+      render: (item) => (
+        <strong>
+          {item.submittedAt || '-'}
+          <small>{item.daysDelayedLabel || '0 days delayed'}</small>
+        </strong>
+      ),
+      getSortValue: (item) => new Date(item.submittedAtRaw || 0).getTime(),
     },
     {
       key: '_actions',
@@ -934,10 +940,11 @@ function ApplicationsPage({ session }) {
             searchLabel="Search applications"
             searchPlaceholder="Search reference, applicant, barangay, or program"
             emptyMessage={loadingQueue ? 'Loading applications...' : 'No applications found.'}
-            initialSortKey="age"
+            initialSortKey="submittedAt"
+            initialSortDirection="desc"
             initialSearchValue={queueIntent.searchValue}
             rowFilter={queueIntent.rowFilter}
-            gridTemplate="1.25fr 1.05fr 0.9fr 1fr 0.45fr 150px"
+            gridTemplate="1.25fr 1.05fr 0.9fr 1fr 0.85fr 150px"
           />
         </section>
       </div>

@@ -78,9 +78,10 @@ test('barangay secretary can manage households and cannot approve applications',
   render(<App />);
 
   expect(await screen.findByRole('heading', { name: /^Households$/i })).toBeInTheDocument();
-  expect((await screen.findAllByRole('button', { name: /View profile/i })).length).toBeGreaterThan(0);
-  expect((await screen.findAllByRole('button', { name: /^Edit$/i })).length).toBeGreaterThan(0);
-  expect((await screen.findAllByRole('button', { name: /^Delete$/i })).length).toBeGreaterThan(0);
+  fireEvent.click((await screen.findAllByRole('button', { name: /^Open actions$/i }))[0]);
+  expect(await screen.findByRole('menuitem', { name: /View profile/i })).toBeInTheDocument();
+  expect(await screen.findByRole('menuitem', { name: /^Edit$/i })).toBeInTheDocument();
+  expect(await screen.findByRole('menuitem', { name: /^Delete$/i })).toBeInTheDocument();
   expect(screen.getByRole('link', { name: /Land Map/i })).toBeInTheDocument();
 
   window.location.hash = '#/applications';

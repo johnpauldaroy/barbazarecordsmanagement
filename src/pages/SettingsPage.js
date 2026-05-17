@@ -34,7 +34,7 @@ function createEmptyProgramForm() {
     category: '',
     description: '',
     eligibilitySummary: '',
-    status: 'draft',
+    status: 'active',
     requiresReview: true,
     maxActiveApplicationsPerHousehold: '1',
     allowMultipleHouseholdBeneficiaries: false,
@@ -44,6 +44,15 @@ function createEmptyProgramForm() {
 }
 
 function formatStatusLabel(value) {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (normalized === 'active') {
+    return 'Enabled';
+  }
+
+  if (normalized === 'inactive' || normalized === 'archived' || normalized === 'draft') {
+    return 'Disabled';
+  }
+
   return String(value ?? '')
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (char) => char.toUpperCase());
@@ -83,10 +92,12 @@ function UserActions({ user, canManageUsers, onEdit, onDeactivate }) {
   );
 }
 
-function ProgramActions({ program, canManagePrograms, onEdit, onArchive }) {
+function ProgramActions({ program, canManagePrograms, onEdit, onToggleEnabled }) {
   if (!canManagePrograms) {
     return <Badge variant="outline">View only</Badge>;
   }
+
+  const isEnabled = program.status === 'active' && !program.archived_at;
 
   return (
     <div className="row-actions" onClick={(event) => event.stopPropagation()}>
@@ -101,12 +112,12 @@ function ProgramActions({ program, canManagePrograms, onEdit, onArchive }) {
       </Button>
       <Button
         type="button"
-        variant="destructive"
+        variant={isEnabled ? 'destructive' : 'default'}
         size="sm"
-        title={`Archive ${program.name}`}
-        onClick={() => onArchive(program)}
+        title={`${isEnabled ? 'Disable' : 'Enable'} ${program.name}`}
+        onClick={() => onToggleEnabled(program, !isEnabled)}
       >
-        Archive
+        {isEnabled ? 'Disable' : 'Enable'}
       </Button>
     </div>
   );
@@ -303,9 +314,8 @@ function ProgramFormModal({
           <label className="settings-field" htmlFor="program-status">
             <span>Status</span>
             <select id="program-status" name="status" value={formState.status} onChange={onChange}>
-              <option value="draft">Draft</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
+              <option value="active">Enabled</option>
+              <option value="inactive">Disabled</option>
             </select>
           </label>
 
@@ -751,7 +761,7 @@ function SettingsPage({ session }) {
       category: program.category || '',
       description: program.description || '',
       eligibilitySummary: program.eligibility_summary || '',
-      status: program.status || 'draft',
+      status: program.status === 'active' && !program.archived_at ? 'active' : 'inactive',
       requiresReview: program.requires_review ?? true,
       maxActiveApplicationsPerHousehold: String(program.max_active_applications_per_household ?? 1),
       allowMultipleHouseholdBeneficiaries: program.allow_multiple_household_beneficiaries ?? false,
@@ -880,23 +890,24 @@ function SettingsPage({ session }) {
     }
   };
 
-  const handleArchiveProgram = async (program) => {
+  const handleToggleProgramEnabled = async (program, shouldEnable) => {
     if (!canManagePrograms) {
       setProgramPageError('Only admin accounts can manage program settings.');
       return;
     }
 
-    if (!window.confirm(`Archive program ${program.name}? It will no longer appear in intake.`)) {
+    if (!window.confirm(`${shouldEnable ? 'Enable' : 'Disable'} program ${program.name}?`)) {
       return;
     }
 
     setProgramPageError('');
 
     try {
-      await supabaseService.archiveProgram(program.id);
-      setPrograms((current) => current.filter((item) => item.id !== program.id));
+      await supabaseService.setProgramEnabled(program.id, shouldEnable);
+      const programRows = await supabaseService.getProgramCatalog();
+      setPrograms(programRows);
     } catch (error) {
-      setProgramPageError(error.message || 'Failed to archive program.');
+      setProgramPageError(error.message || `Failed to ${shouldEnable ? 'enable' : 'disable'} program.`);
     }
   };
 
@@ -1002,8 +1013,8 @@ function SettingsPage({ session }) {
                   key: 'status',
                   label: 'Status',
                   render: (row) => (
-                    <Badge variant={row.status === 'active' ? 'default' : 'secondary'}>
-                      {formatStatusLabel(row.status)}
+                    <Badge variant={row.status === 'active' && !row.archived_at ? 'default' : 'secondary'}>
+                      {formatStatusLabel(row.archived_at ? 'archived' : row.status)}
                     </Badge>
                   ),
                 },
@@ -1021,7 +1032,7 @@ function SettingsPage({ session }) {
                       program={row}
                       canManagePrograms={canManagePrograms}
                       onEdit={openEditProgram}
-                      onArchive={handleArchiveProgram}
+                      onToggleEnabled={handleToggleProgramEnabled}
                     />
                   ),
                 },

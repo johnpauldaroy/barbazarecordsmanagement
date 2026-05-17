@@ -109,6 +109,7 @@ function LandMapPage() {
   const [mapRows, setMapRows] = useState([]);
   const [missingCoordinates, setMissingCoordinates] = useState([]);
   const [scopeInfo, setScopeInfo] = useState({ isScoped: false, barangayName: null });
+  const [legendKeys, setLegendKeys] = useState(Object.keys(LEGEND_CONFIG));
   const [activeLegend, setActiveLegend] = useState(null);
 
   useEffect(() => {
@@ -127,6 +128,7 @@ function LandMapPage() {
 
         setMapRows(payload.rows ?? []);
         setMissingCoordinates(payload.missingCoordinates ?? []);
+        setLegendKeys((payload.legendKeys ?? Object.keys(LEGEND_CONFIG)).filter((key) => key in LEGEND_CONFIG));
         setScopeInfo({
           isScoped: Boolean(payload.scope?.isScoped),
           barangayName: payload.scope?.barangayName ?? null,
@@ -149,9 +151,26 @@ function LandMapPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (activeLegend && !legendKeys.includes(activeLegend)) {
+      setActiveLegend(null);
+    }
+  }, [activeLegend, legendKeys]);
+
+  const visibleLegendEntries = useMemo(
+    () => legendKeys.map((key) => [key, LEGEND_CONFIG[key]]).filter(([, meta]) => Boolean(meta)),
+    [legendKeys]
+  );
+
   const rowsWithLegend = useMemo(
-    () => mapRows.map((row) => ({ ...row, legendKey: getLegendKey(row.programs) })),
-    [mapRows]
+    () => mapRows.map((row) => {
+      const legendKey = getLegendKey(row.programs);
+      return {
+        ...row,
+        legendKey: legendKey && legendKeys.includes(legendKey) ? legendKey : null,
+      };
+    }),
+    [legendKeys, mapRows]
   );
 
   const visibleRows = useMemo(
@@ -201,14 +220,16 @@ function LandMapPage() {
             <strong>{missingCoordinates.length}</strong>
           </div>
         </div>
-        <p className="land-map-caption">
-          Program legend colors: 4Ps in yellow, AICS in blue, and TUPAD in green.
-        </p>
+        {visibleLegendEntries.length ? (
+          <p className="land-map-caption">
+            Program legend colors show enabled programs only.
+          </p>
+        ) : null}
       </section>
 
       <section className="panel space-y-4">
         <div className="land-map-legend">
-          {Object.entries(LEGEND_CONFIG).map(([key, meta]) => (
+          {visibleLegendEntries.map(([key, meta]) => (
             <button
               key={key}
               type="button"
