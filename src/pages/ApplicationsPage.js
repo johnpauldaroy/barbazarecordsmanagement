@@ -456,9 +456,13 @@ function ApplicationDetailsModal({
   const [localError, setLocalError] = useState('');
   const [quotaWarning, setQuotaWarning] = useState(null);
   const workflowActions = getWorkflowActions(record, canApproveApplications);
-  const showAmountInput = workflowActions.some((a) => ['approved', 'released'].includes(a.status));
-
   const willApproveOrRelease = workflowActions.some((a) => ['approved', 'released'].includes(a.status));
+  const NO_AMOUNT_PROGRAM_CODES = ['TUPAD', '4PS', '4P', 'FOURPS'];
+  const programCodes = (record.meta?.programCodes ?? []).map((c) => c.toUpperCase());
+  const isNoAmountProgram = programCodes.some((c) => NO_AMOUNT_PROGRAM_CODES.includes(c))
+    || (record.program ?? '').toLowerCase().includes('tupad')
+    || (record.program ?? '').toLowerCase().includes('4p');
+  const showAmountInput = willApproveOrRelease;
 
   useEffect(() => {
     if (!willApproveOrRelease) return;
@@ -504,13 +508,13 @@ function ApplicationDetailsModal({
       setLocalError('Remarks are required when requesting more information or rejecting an application.');
       return;
     }
-    if (['approved', 'released'].includes(nextStatus) && (!approvedAmount || Number(approvedAmount) <= 0)) {
+    if (!isNoAmountProgram && ['approved', 'released'].includes(nextStatus) && (!approvedAmount || Number(approvedAmount) <= 0)) {
       setLocalError('Please enter the approved amount (PHP) before proceeding.');
       return;
     }
 
     setLocalError('');
-    onTransition(nextStatus, trimmedRemarks, Number(approvedAmount) || null);
+    onTransition(nextStatus, trimmedRemarks, isNoAmountProgram ? null : (Number(approvedAmount) || null));
   };
 
   return (
@@ -582,8 +586,12 @@ function ApplicationDetailsModal({
                   step="0.01"
                   value={approvedAmount}
                   onChange={(event) => setApprovedAmount(event.target.value)}
-                  placeholder="0.00"
+                  placeholder={isNoAmountProgram ? 'Not required for this program' : '0.00'}
+                  disabled={isNoAmountProgram}
                 />
+                {isNoAmountProgram ? (
+                  <small>Approved amount is disabled for TUPAD and 4Ps applications.</small>
+                ) : null}
               </label>
             )}
             <label className="settings-field">

@@ -2030,6 +2030,7 @@ export const supabaseService = {
             applicationId: application.id,
             barangayId: application.barangay_id,
             programIds: programRows.map((p) => p.program_id).filter(Boolean),
+            programCodes: programRows.map((p) => p.program?.code).filter(Boolean),
             currentStatus: application.current_status,
             uploadedRequirementCount,
           },
