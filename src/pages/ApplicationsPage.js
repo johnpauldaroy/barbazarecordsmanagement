@@ -40,16 +40,26 @@ function formatPesoAmount(value) {
 }
 
 function RecommendationActions({ item, canCreateApplications, onSelect }) {
-  const disabled = !canCreateApplications || item.isQuotaFull;
-  const label = item.isQuotaFull ? 'Quota full' : 'Select';
+  const suggestedProgramName = item.suggestedProgram?.name ?? '';
+  const isAlreadyEnrolledInSuggested = suggestedProgramName
+    && (item.activePrograms ?? []).some(
+      (p) => p.toLowerCase() === suggestedProgramName.toLowerCase()
+    );
+  const isDisabled = !canCreateApplications || item.isQuotaFull || isAlreadyEnrolledInSuggested;
+  const label = item.isQuotaFull
+    ? 'Quota full'
+    : isAlreadyEnrolledInSuggested
+    ? 'Already enrolled'
+    : 'Select';
 
   return (
     <div className="row-actions" onClick={(event) => event.stopPropagation()}>
       <Button
         type="button"
         size="sm"
-        title={disabled ? label : `Select ${item.householdCode}`}
-        disabled={disabled}
+        variant={isAlreadyEnrolledInSuggested ? 'outline' : 'default'}
+        title={isDisabled ? label : `Select ${item.householdCode}`}
+        disabled={isDisabled}
         onClick={() => onSelect(item)}
       >
         {label}
@@ -1227,6 +1237,17 @@ function ApplicationsPage({ session }) {
         <strong>
           {item.householdCode}
           <small>{item.headName}</small>
+          {item.activePrograms?.length > 0 && (
+            <small style={{
+              display: 'block',
+              marginTop: '3px',
+              color: '#d97706',
+              fontWeight: 500,
+              fontSize: '11px',
+            }}>
+              Active: {item.activePrograms.join(', ')}
+            </small>
+          )}
         </strong>
       ),
       getSearchText: (item) => `${item.householdCode} ${item.headName} ${item.barangayName}`,
@@ -1495,17 +1516,19 @@ function ApplicationsPage({ session }) {
                 </label>
               </div>
               {recommendationError ? <div className="auth-alert">{recommendationError}</div> : null}
-              <InteractiveTable
-                columns={recommendationColumns}
-                rows={recommendationRows}
-                rowKey="householdCode"
-                searchLabel="Search recommendations"
-                searchPlaceholder="Search household, head, barangay, or reason"
-                emptyMessage={loadingRecommendations ? 'Loading recommendations...' : 'No recommendation candidates found.'}
-                initialSortKey="rank"
-                initialSortDirection="asc"
-                gridTemplate="0.45fr 1.25fr 0.55fr 1fr 1fr 0.55fr 1.4fr 0.75fr 0.7fr 120px"
-              />
+              <div className="application-recommendations-table">
+                <InteractiveTable
+                  columns={recommendationColumns}
+                  rows={recommendationRows}
+                  rowKey="householdCode"
+                  searchLabel="Search recommendations"
+                  searchPlaceholder="Search household, head, barangay, or reason"
+                  emptyMessage={loadingRecommendations ? 'Loading recommendations...' : 'No recommendation candidates found.'}
+                  initialSortKey="rank"
+                  initialSortDirection="asc"
+                  gridTemplate="0.45fr 1.25fr 0.55fr 1fr 1fr 0.55fr 1.4fr 0.75fr 0.7fr 120px"
+                />
+              </div>
             </TabsContent>
 
             <TabsContent value="submitted" className="application-tabpanel">

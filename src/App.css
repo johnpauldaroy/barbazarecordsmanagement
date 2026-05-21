@@ -1840,7 +1840,7 @@ body {
 
 .application-recommendation-toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 26rem);
   gap: 1rem;
   align-items: end;
 }
@@ -1852,6 +1852,20 @@ body {
 
 .application-program-filter {
   margin: 0;
+}
+
+.application-program-filter select {
+  width: 100%;
+  min-width: 0;
+}
+
+.application-recommendations-table .data-table__toolbar {
+  justify-content: flex-end;
+  margin-top: -0.25rem;
+}
+
+.application-recommendations-table .data-table__search {
+  width: min(100%, 26rem);
 }
 
 .recommendation-rank,

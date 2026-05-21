@@ -678,6 +678,7 @@ function mapRecommendationCandidate(row, programCode) {
     isQuotaFull,
     programCode,
     qualifyingChildrenCount: Number(row.qualifying_children_count ?? row.qualifyingChildrenCount ?? 0),
+    activePrograms: row.active_program_names ?? row.activePrograms ?? [],
   };
 }
 
