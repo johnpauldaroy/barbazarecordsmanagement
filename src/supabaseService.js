@@ -677,7 +677,50 @@ function mapRecommendationCandidate(row, programCode) {
       : null,
     isQuotaFull,
     programCode,
+    qualifyingChildrenCount: Number(row.qualifying_children_count ?? row.qualifyingChildrenCount ?? 0),
   };
+}
+
+// Resolves the best-fit program for a recommendation candidate based on
+// eligibility rules and quota availability.
+// Priority: AICS (1) > TUPAD (2) > 4Ps (3). Exhausted quotas are skipped.
+function resolveSuggestedProgram(candidate, programs, quotaMap) {
+  const getRemaining = (programCode) => {
+    const key = `${candidate.barangayId}:${programCode}`;
+    const q = quotaMap.get(key);
+    if (!q) return Infinity;
+    if (!q.is_active) return Infinity;
+    return Number(q.remaining_count);
+  };
+
+  const income = Number(candidate.monthlyIncome ?? 0);
+  const hasOccupation = Boolean(candidate.headOccupation);
+  const hasIncome = income > 0;
+  const isNoIncomeNoWork = !hasOccupation && !hasIncome;
+  const isLowIncome = income < 10000;
+  const qualifyingChildren = Number(candidate.qualifyingChildrenCount ?? 0);
+
+  const eligible = [];
+
+  if (isNoIncomeNoWork) {
+    eligible.push({ code: 'AICS', priority: 1, remaining: getRemaining('AICS') });
+  }
+
+  if (!hasIncome || isLowIncome) {
+    eligible.push({ code: 'TUPAD', priority: 2, remaining: getRemaining('TUPAD') });
+  }
+
+  if (isLowIncome && qualifyingChildren >= 2) {
+    eligible.push({ code: '4PS_MONITORING', priority: 3, remaining: getRemaining('4PS_MONITORING') });
+  }
+
+  const available = eligible
+    .filter((e) => e.remaining !== 0)
+    .sort((a, b) => a.priority - b.priority);
+
+  const best = available[0];
+  if (!best) return null;
+  return programs.find((p) => p.code === best.code) ?? null;
 }
 
 function buildDemoRecommendationCandidates(programCode) {
@@ -4794,6 +4837,10 @@ export const supabaseService = {
       note: `Recommended candidate. Score: ${candidate.recommendationScore ?? 0}. ${(candidate.recommendationReasons ?? []).join('; ')}`,
       uploadedRequirements: {},
     };
+  },
+
+  resolveSuggestedProgram(candidate, programs, quotaMap) {
+    return resolveSuggestedProgram(candidate, programs, quotaMap);
   },
 
   // ── Barangay Distribution Quotas ─────────────────────────────────────────

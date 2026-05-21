@@ -223,6 +223,15 @@ function AddApplicationModal({
                 </option>
               ))}
             </select>
+            {formState.suggestedProgramCode && formState.programCode !== formState.suggestedProgramCode ? (
+              <small style={{ color: '#d97706' }}>
+                System suggested: {formState.suggestedProgramName} — you can change this.
+              </small>
+            ) : formState.suggestedProgramCode ? (
+              <small style={{ color: '#16a34a' }}>
+                Suggested based on household eligibility and quota availability.
+              </small>
+            ) : null}
           </label>
 
           <label className="settings-field">
@@ -719,13 +728,27 @@ function ApplicationsPage({ session }) {
       setRecommendationError('');
 
       try {
-        const rows = await supabaseService.getRecommendationCandidates({
-          programCode: recommendationProgramCode,
-          year: new Date().getFullYear(),
-        });
+        const year = new Date().getFullYear();
+        const [rows, quotaRows] = await Promise.all([
+          supabaseService.getRecommendationCandidates({
+            programCode: recommendationProgramCode,
+            year,
+          }),
+          supabaseService.getBarangayProgramQuotas(year).catch(() => []),
+        ]);
+
+        // Build quota lookup keyed by "barangayId:programCode"
+        const quotaMap = new Map(
+          quotaRows.map((q) => [`${q.barangay_id}:${q.program_code}`, q])
+        );
+
+        const enrichedRows = rows.map((row) => ({
+          ...row,
+          suggestedProgram: supabaseService.resolveSuggestedProgram(row, programs, quotaMap),
+        }));
 
         if (isMounted) {
-          setRecommendationRows(rows);
+          setRecommendationRows(enrichedRows);
         }
       } catch (error) {
         if (isMounted) {
@@ -744,7 +767,7 @@ function ApplicationsPage({ session }) {
     return () => {
       isMounted = false;
     };
-  }, [applicationTab, recommendationProgramCode, recommendationRefreshKey]);
+  }, [applicationTab, recommendationProgramCode, recommendationRefreshKey, programs]);
 
   const selectedProgram = useMemo(
     () => programs.find((program) => program.code === newApplication.programCode) ?? programs[0] ?? null,
@@ -935,9 +958,13 @@ function ApplicationsPage({ session }) {
       return;
     }
 
+    // Use the system-suggested program if available, otherwise fall back to the filter
+    const suggestedProgram = candidate.suggestedProgram ?? null;
+    const programCode = suggestedProgram?.code || recommendationProgramCode || candidate.programCode;
+
     const prefill = supabaseService.prefillApplicationFromRecommendation({
       ...candidate,
-      programCode: recommendationProgramCode || candidate.programCode,
+      programCode,
     });
 
     setSaveError('');
@@ -950,6 +977,8 @@ function ApplicationsPage({ session }) {
         ? (scopedBarangayName || prefill.barangay || current.barangay)
         : (prefill.barangay || current.barangay),
       programCode: prefill.programCode || current.programCode,
+      suggestedProgramCode: suggestedProgram?.code ?? '',
+      suggestedProgramName: suggestedProgram?.name ?? '',
       uploadedRequirements: {},
     }));
     setShowAddModal(true);
@@ -1108,6 +1137,31 @@ function ApplicationsPage({ session }) {
         );
       },
       getSortValue: (item) => (item.quota ? item.quota.remaining : Infinity),
+    },
+    {
+      key: 'suggestedProgram',
+      label: 'Suggested',
+      render: (item) => {
+        if (!item.suggestedProgram) {
+          return <span style={{ color: '#9ca3af', fontSize: '12px' }}>—</span>;
+        }
+        return (
+          <span style={{
+            display: 'inline-block',
+            fontSize: '11px',
+            fontWeight: 700,
+            color: '#1d4ed8',
+            background: '#eff6ff',
+            border: '1px solid #bfdbfe',
+            borderRadius: '6px',
+            padding: '2px 8px',
+            whiteSpace: 'nowrap',
+          }}>
+            {item.suggestedProgram.code}
+          </span>
+        );
+      },
+      getSearchText: (item) => item.suggestedProgram?.code ?? '',
     },
     {
       key: '_actions',
@@ -1309,7 +1363,7 @@ function ApplicationsPage({ session }) {
                 emptyMessage={loadingRecommendations ? 'Loading recommendations...' : 'No recommendation candidates found.'}
                 initialSortKey="rank"
                 initialSortDirection="asc"
-                gridTemplate="0.45fr 1.25fr 0.55fr 1fr 1fr 0.55fr 1.4fr 0.75fr 120px"
+                gridTemplate="0.45fr 1.25fr 0.55fr 1fr 1fr 0.55fr 1.4fr 0.75fr 0.7fr 120px"
               />
             </TabsContent>
 
