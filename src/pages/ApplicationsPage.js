@@ -39,6 +39,16 @@ function formatPesoAmount(value) {
   return `PHP ${Number.isFinite(amount) ? amount.toLocaleString('en-PH') : '0'}`;
 }
 
+const PROGRAM_ABBREV = {
+  'assistance to individuals in crisis situation': 'AICS',
+  'tulong panghanapbuhay sa ating disadvantaged/displaced workers': 'TUPAD',
+  '4ps monitoring': '4Ps',
+  '4ps': '4Ps',
+};
+function abbreviateProgram(name) {
+  return PROGRAM_ABBREV[name.toLowerCase()] ?? name;
+}
+
 function RecommendationActions({ item, canCreateApplications, onSelect }) {
   const suggestedProgramName = item.suggestedProgram?.name ?? '';
   const isAlreadyEnrolledInSuggested = suggestedProgramName
@@ -1245,7 +1255,7 @@ function ApplicationsPage({ session }) {
               fontWeight: 500,
               fontSize: '11px',
             }}>
-              Active: {item.activePrograms.join(', ')}
+              Active: {item.activePrograms.map(abbreviateProgram).join(', ')}
             </small>
           )}
         </strong>
