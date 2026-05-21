@@ -13,6 +13,12 @@ L.Icon.Default.mergeOptions({
 });
 
 const BARBAZA_CENTER = [11.195867, 122.038931];
+const BARBAZA_BOUNDS = [
+  [11.14, 121.98],
+  [11.27, 122.12],
+];
+const BARBAZA_MAP_BOUNDS = L.latLngBounds(BARBAZA_BOUNDS);
+const BARBAZA_PAN_BOUNDS = BARBAZA_MAP_BOUNDS.pad(0.25);
 
 const LEGEND_CONFIG = {
   fourps: {
@@ -68,22 +74,35 @@ function getLegendKey(programs = []) {
   return null;
 }
 
+function isPointInBarbazaBounds(point) {
+  const latitude = Number(point?.latitude);
+  const longitude = Number(point?.longitude);
+
+  return Number.isFinite(latitude)
+    && Number.isFinite(longitude)
+    && BARBAZA_MAP_BOUNDS.contains([latitude, longitude]);
+}
+
 function MapViewport({ points }) {
   const map = useMap();
 
   useEffect(() => {
-    if (!points.length) {
-      map.setView(BARBAZA_CENTER, 12);
+    const barbazaPoints = points.filter(isPointInBarbazaBounds);
+
+    map.setMaxBounds(BARBAZA_PAN_BOUNDS);
+
+    if (!barbazaPoints.length) {
+      map.fitBounds(BARBAZA_MAP_BOUNDS, { padding: [24, 24] });
       return;
     }
 
-    if (points.length === 1) {
-      map.setView([points[0].latitude, points[0].longitude], 14);
+    if (barbazaPoints.length === 1) {
+      map.setView([barbazaPoints[0].latitude, barbazaPoints[0].longitude], 14);
       return;
     }
 
-    const bounds = L.latLngBounds(points.map((point) => [point.latitude, point.longitude]));
-    map.fitBounds(bounds, { padding: [40, 40] });
+    const bounds = L.latLngBounds(barbazaPoints.map((point) => [point.latitude, point.longitude]));
+    map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
   }, [map, points]);
 
   return null;
@@ -174,9 +193,12 @@ function LandMapPage() {
   );
 
   const visibleRows = useMemo(
-    () => (!activeLegend
-      ? rowsWithLegend
-      : rowsWithLegend.filter((row) => row.legendKey === activeLegend)),
+    () => {
+      const mappableRows = rowsWithLegend.filter(isPointInBarbazaBounds);
+      return !activeLegend
+        ? mappableRows
+        : mappableRows.filter((row) => row.legendKey === activeLegend);
+    },
     [activeLegend, rowsWithLegend]
   );
 
@@ -252,13 +274,17 @@ function LandMapPage() {
           <div className="land-map-card">
             <MapContainer
               center={BARBAZA_CENTER}
-              zoom={12}
+              zoom={13}
+              minZoom={12}
+              maxBounds={BARBAZA_PAN_BOUNDS}
+              maxBoundsViscosity={1}
               scrollWheelZoom
               className="land-map-canvas"
             >
               <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                noWrap
               />
               <MapViewport points={visibleRows} />
               {visibleRows.map((row) => {

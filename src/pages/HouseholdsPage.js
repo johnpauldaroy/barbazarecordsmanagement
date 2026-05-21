@@ -1417,7 +1417,7 @@ function HouseholdsPage({ session }) {
           item={item}
           onViewProfile={() => openProfileModal(item)}
           onEdit={canManageHouseholds ? () => openEditModal(item) : undefined}
-          onDelete={canManageHouseholds ? () => handleDelete(item.code) : undefined}
+          onDelete={canManageHouseholds && !isBarangayScopedRole ? () => handleDelete(item.code) : undefined}
         />
       ),
     },

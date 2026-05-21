@@ -7,6 +7,7 @@ import StatusPill from '../components/StatusPill';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Input } from '../components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Textarea } from '../components/ui/textarea';
 import { classifyIncome } from '../incomeClassification';
 import {
@@ -28,6 +29,30 @@ function QueueActions({ item, onViewDetails }) {
         onClick={onViewDetails}
       >
         View details
+      </Button>
+    </div>
+  );
+}
+
+function formatPesoAmount(value) {
+  const amount = Number(value ?? 0);
+  return `PHP ${Number.isFinite(amount) ? amount.toLocaleString('en-PH') : '0'}`;
+}
+
+function RecommendationActions({ item, canCreateApplications, onSelect }) {
+  const disabled = !canCreateApplications || item.isQuotaFull;
+  const label = item.isQuotaFull ? 'Quota full' : 'Select';
+
+  return (
+    <div className="row-actions" onClick={(event) => event.stopPropagation()}>
+      <Button
+        type="button"
+        size="sm"
+        title={disabled ? label : `Select ${item.householdCode}`}
+        disabled={disabled}
+        onClick={() => onSelect(item)}
+      >
+        {label}
       </Button>
     </div>
   );
@@ -75,6 +100,20 @@ function normalizeWorkflowStatus(value) {
   };
 
   return statusAliases[normalized] || normalized.replace(/\s+/g, '_');
+}
+
+function getApplicationTabKey(row) {
+  const status = normalizeWorkflowStatus(row?.meta?.currentStatus || row?.status);
+
+  if (['approved', 'released', 'ready_for_release'].includes(status)) {
+    return 'approved';
+  }
+
+  if (status === 'rejected') {
+    return 'rejected';
+  }
+
+  return 'submitted';
 }
 
 function formatWorkflowStatusLabel(value) {
@@ -318,7 +357,48 @@ function ApplicationDetailsModal({
 }) {
   const [remarks, setRemarks] = useState('');
   const [localError, setLocalError] = useState('');
+  const [quotaWarning, setQuotaWarning] = useState(null);
   const workflowActions = getWorkflowActions(record, canApproveApplications);
+
+  const willApproveOrRelease = workflowActions.some((a) => ['approved', 'released'].includes(a.status));
+
+  useEffect(() => {
+    if (!willApproveOrRelease) return;
+    const barangayId = record.meta?.barangayId;
+    const programIds = record.meta?.programIds ?? [];
+    if (!barangayId || programIds.length === 0) return;
+
+    let cancelled = false;
+    async function checkQuota() {
+      try {
+        const year = new Date().getFullYear();
+        const checks = await Promise.all(
+          programIds.map((pid) =>
+            supabaseService.checkBarangayQuota({ barangayId, programId: pid, year })
+          )
+        );
+        if (cancelled) return;
+        const worstQuota = checks
+          .filter(Boolean)
+          .reduce((worst, q) => {
+            if (!worst) return q;
+            return Number(q.remaining_count) < Number(worst.remaining_count) ? q : worst;
+          }, null);
+        if (worstQuota) {
+          setQuotaWarning({
+            used: Number(worstQuota.used_count),
+            max: worstQuota.max_beneficiaries,
+            remaining: Number(worstQuota.remaining_count),
+            isFull: Number(worstQuota.remaining_count) <= 0,
+          });
+        }
+      } catch {
+        // quota check failure is non-blocking; server-side RPC enforces the hard limit
+      }
+    }
+    void checkQuota();
+    return () => { cancelled = true; };
+  }, [willApproveOrRelease, record.meta?.barangayId, record.meta?.programIds]);
 
   const submitTransition = (nextStatus) => {
     const trimmedRemarks = remarks.trim();
@@ -400,6 +480,13 @@ function ApplicationDetailsModal({
                 placeholder="Add review notes, missing requirements, approval basis, or rejection reason"
               />
             </label>
+            {quotaWarning ? (
+              <div className={`auth-alert${quotaWarning.isFull ? '' : ' auth-alert--warning'}`}>
+                {quotaWarning.isFull
+                  ? `Quota full: ${quotaWarning.used} of ${quotaWarning.max} slots used for this barangay/program. Approval will be blocked.`
+                  : `Low quota: only ${quotaWarning.remaining} of ${quotaWarning.max} slots remaining for this barangay/program.`}
+              </div>
+            ) : null}
             {localError || transitionError ? (
               <div className="auth-alert">{localError || transitionError}</div>
             ) : null}
@@ -520,6 +607,12 @@ function ApplicationsPage({ session }) {
   const [detailReference, setDetailReference] = useState(null);
   const [programs, setPrograms] = useState([]);
   const [barangays, setBarangays] = useState([]);
+  const [applicationTab, setApplicationTab] = useState('recommendations');
+  const [recommendationProgramCode, setRecommendationProgramCode] = useState('');
+  const [recommendationRows, setRecommendationRows] = useState([]);
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
+  const [recommendationError, setRecommendationError] = useState('');
+  const [recommendationRefreshKey, setRecommendationRefreshKey] = useState(0);
   const [loadingQueue, setLoadingQueue] = useState(true);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -557,19 +650,38 @@ function ApplicationsPage({ session }) {
       setPageError('');
 
       try {
-        const [rows, programRows, barangayRows] = await Promise.all([
+        const [rows, programRows, barangayRows, quotaRows] = await Promise.all([
           supabaseService.getApplicationQueue(),
           supabaseService.getPrograms(),
           supabaseService.getBarangays(),
+          supabaseService.getBarangayProgramQuotas(new Date().getFullYear()).catch(() => []),
         ]);
 
         if (!isMounted) {
           return;
         }
 
-        setQueueRows(rows);
+        // Build quota lookup keyed by barangay_id — take the worst remaining_count across programs
+        const quotaByBarangay = new Map();
+        for (const q of quotaRows) {
+          const existing = quotaByBarangay.get(q.barangay_id);
+          const remaining = Number(q.remaining_count);
+          const max = q.max_beneficiaries;
+          if (!existing || remaining < existing.remaining) {
+            quotaByBarangay.set(q.barangay_id, { remaining, max, used: Number(q.used_count) });
+          }
+        }
+
+        const enrichedRows = rows.map((row) => {
+          const qKey = row.barangayId;
+          const qs = qKey ? quotaByBarangay.get(qKey) : null;
+          return qs ? { ...row, quotaStatus: qs } : row;
+        });
+
+        setQueueRows(enrichedRows);
         setPrograms(programRows);
         setBarangays(barangayRows);
+        setRecommendationProgramCode((current) => current || programRows[0]?.code || '');
         setNewApplication((current) => ({
           ...current,
           programCode: current.programCode || programRows[0]?.code || '',
@@ -595,11 +707,63 @@ function ApplicationsPage({ session }) {
     };
   }, [isBarangayScopedRole, scopedBarangayName]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadRecommendations() {
+      if (applicationTab !== 'recommendations' || !recommendationProgramCode) {
+        return;
+      }
+
+      setLoadingRecommendations(true);
+      setRecommendationError('');
+
+      try {
+        const rows = await supabaseService.getRecommendationCandidates({
+          programCode: recommendationProgramCode,
+          year: new Date().getFullYear(),
+        });
+
+        if (isMounted) {
+          setRecommendationRows(rows);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setRecommendationRows([]);
+          setRecommendationError(error.message || 'Failed to load recommendations.');
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingRecommendations(false);
+        }
+      }
+    }
+
+    void loadRecommendations();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [applicationTab, recommendationProgramCode, recommendationRefreshKey]);
+
   const selectedProgram = useMemo(
     () => programs.find((program) => program.code === newApplication.programCode) ?? programs[0] ?? null,
     [newApplication.programCode, programs]
   );
+  const selectedRecommendationProgram = useMemo(
+    () => programs.find((program) => program.code === recommendationProgramCode) ?? programs[0] ?? null,
+    [programs, recommendationProgramCode]
+  );
   const selectedCase = detailReference ? caseDetails[detailReference] : null;
+  const tabCounts = useMemo(() => queueRows.reduce((counts, row) => {
+    const tabKey = getApplicationTabKey(row);
+    counts[tabKey] = (counts[tabKey] ?? 0) + 1;
+    return counts;
+  }, { submitted: 0, approved: 0, rejected: 0 }), [queueRows]);
+  const visibleQueueRows = useMemo(
+    () => queueRows.filter((row) => getApplicationTabKey(row) === applicationTab),
+    [applicationTab, queueRows]
+  );
 
   const stats = useMemo(() => {
     const verificationCount = queueRows.filter((item) =>
@@ -766,6 +930,31 @@ function ApplicationsPage({ session }) {
     setActiveSuggestionField(null);
   };
 
+  const handleSelectRecommendation = (candidate) => {
+    if (!canCreateApplications || candidate.isQuotaFull) {
+      return;
+    }
+
+    const prefill = supabaseService.prefillApplicationFromRecommendation({
+      ...candidate,
+      programCode: recommendationProgramCode || candidate.programCode,
+    });
+
+    setSaveError('');
+    setSuggestions([]);
+    setActiveSuggestionField(null);
+    setNewApplication((current) => ({
+      ...current,
+      ...prefill,
+      barangay: isBarangayScopedRole
+        ? (scopedBarangayName || prefill.barangay || current.barangay)
+        : (prefill.barangay || current.barangay),
+      programCode: prefill.programCode || current.programCode,
+      uploadedRequirements: {},
+    }));
+    setShowAddModal(true);
+  };
+
   const uploadRequirement = (requirement, file) => {
     const allowedFileTypes = requirement.allowed_file_types ?? [];
     const maxFileSizeMb = Number(requirement.max_file_size_mb) || 10;
@@ -836,6 +1025,7 @@ function ApplicationsPage({ session }) {
       }));
       setShowAddModal(false);
       setDetailReference(queueItem.reference);
+      setRecommendationRefreshKey((current) => current + 1);
       resetApplicationForm();
     } catch (error) {
       setSaveError(error.message || 'Failed to save the application to Supabase.');
@@ -843,6 +1033,94 @@ function ApplicationsPage({ session }) {
       setIsSaving(false);
     }
   };
+
+  const recommendationColumns = [
+    {
+      key: 'rank',
+      label: 'Rank',
+      render: (item) => <strong className="recommendation-rank">#{item.rank}</strong>,
+      getSortValue: (item) => item.rank,
+    },
+    {
+      key: 'householdCode',
+      label: 'Household',
+      render: (item) => (
+        <strong>
+          {item.householdCode}
+          <small>{item.headName}</small>
+        </strong>
+      ),
+      getSearchText: (item) => `${item.householdCode} ${item.headName} ${item.barangayName}`,
+    },
+    {
+      key: 'familyCount',
+      label: 'Family',
+      render: (item) => <strong>{item.familyCount}</strong>,
+      getSortValue: (item) => item.familyCount,
+    },
+    {
+      key: 'incomeTier',
+      label: 'Income',
+      render: (item) => (
+        <strong>
+          {item.incomeTier}
+          <small>{formatPesoAmount(item.monthlyIncome)}</small>
+        </strong>
+      ),
+      getSortValue: (item) => item.monthlyIncome,
+    },
+    {
+      key: 'workStatus',
+      label: 'Work',
+      render: (item) => <span>{item.workStatus}</span>,
+    },
+    {
+      key: 'recommendationScore',
+      label: 'Score',
+      render: (item) => <span className="recommendation-score">{item.recommendationScore}</span>,
+      getSortValue: (item) => item.recommendationScore,
+    },
+    {
+      key: 'recommendationReasons',
+      label: 'Reasons',
+      render: (item) => (
+        <div className="application-recommendation-reasons">
+          {(item.recommendationReasons ?? []).slice(0, 3).map((reason) => (
+            <span key={reason}>{reason}</span>
+          ))}
+        </div>
+      ),
+      getSearchText: (item) => (item.recommendationReasons ?? []).join(' '),
+    },
+    {
+      key: 'quota',
+      label: 'Quota',
+      render: (item) => {
+        if (!item.quota) {
+          return <StatusPill status="No quota set" tone="neutral" />;
+        }
+
+        return (
+          <strong>
+            {item.quota.used}/{item.quota.max}
+            <small>{item.quota.remaining} slots left</small>
+          </strong>
+        );
+      },
+      getSortValue: (item) => (item.quota ? item.quota.remaining : Infinity),
+    },
+    {
+      key: '_actions',
+      label: 'Actions',
+      render: (item) => (
+        <RecommendationActions
+          item={item}
+          canCreateApplications={canCreateApplications}
+          onSelect={handleSelectRecommendation}
+        />
+      ),
+    },
+  ];
 
   const columns = [
     {
@@ -858,6 +1136,34 @@ function ApplicationsPage({ session }) {
     },
     { key: 'applicant', label: 'Applicant' },
     { key: 'barangay', label: 'Barangay' },
+    {
+      key: 'quotaStatus',
+      label: 'Quota',
+      render: (item) => {
+        if (!item.quotaStatus) return <span style={{ color: '#9ca3af', fontSize: '12px' }}>—</span>;
+        const { used, max, remaining } = item.quotaStatus;
+        const isFull = remaining <= 0;
+        const isLow = !isFull && remaining <= Math.max(1, Math.round(max * 0.2));
+        const color = isFull ? '#dc2626' : isLow ? '#d97706' : '#16a34a';
+        return (
+          <span
+            title={`${used} of ${max} slots used`}
+            style={{
+              fontSize: '12px',
+              fontWeight: 700,
+              color,
+              background: `${color}18`,
+              padding: '2px 7px',
+              borderRadius: '9999px',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {used}/{max}
+          </span>
+        );
+      },
+      getSortValue: (item) => (item.quotaStatus ? item.quotaStatus.remaining : Infinity),
+    },
     {
       key: 'status',
       label: 'Status',
@@ -880,6 +1186,26 @@ function ApplicationsPage({ session }) {
       render: (item) => <QueueActions item={item} onViewDetails={() => openDetails(item.reference)} />,
     },
   ];
+
+  const renderQueueTable = (emptyMessage) => (
+    <InteractiveTable
+      columns={columns}
+      rows={visibleQueueRows}
+      rowKey="reference"
+      selectedKey={detailReference}
+      onSelectRow={(row) => {
+        void openDetails(row.reference);
+      }}
+      searchLabel="Search applications"
+      searchPlaceholder="Search reference, applicant, barangay, or program"
+      emptyMessage={loadingQueue ? 'Loading applications...' : emptyMessage}
+      initialSortKey="submittedAt"
+      initialSortDirection="desc"
+      initialSearchValue={queueIntent.searchValue}
+      rowFilter={queueIntent.rowFilter}
+      gridTemplate="1.25fr 1.05fr 0.9fr 0.7fr 1fr 0.85fr 150px"
+    />
+  );
 
   return (
     <>
@@ -929,23 +1255,74 @@ function ApplicationsPage({ session }) {
             </div>
           ) : null}
 
-          <InteractiveTable
-            columns={columns}
-            rows={queueRows}
-            rowKey="reference"
-            selectedKey={detailReference}
-            onSelectRow={(row) => {
-              void openDetails(row.reference);
-            }}
-            searchLabel="Search applications"
-            searchPlaceholder="Search reference, applicant, barangay, or program"
-            emptyMessage={loadingQueue ? 'Loading applications...' : 'No applications found.'}
-            initialSortKey="submittedAt"
-            initialSortDirection="desc"
-            initialSearchValue={queueIntent.searchValue}
-            rowFilter={queueIntent.rowFilter}
-            gridTemplate="1.25fr 1.05fr 0.9fr 1fr 0.85fr 150px"
-          />
+          <Tabs value={applicationTab} onValueChange={setApplicationTab} className="application-tabs">
+            <TabsList className="application-tablist" aria-label="Application sections">
+              <TabsTrigger className="settings-tab application-tab" value="recommendations">
+                <strong>Recommendations</strong>
+                <span>{recommendationRows.length}</span>
+              </TabsTrigger>
+              <TabsTrigger className="settings-tab application-tab" value="submitted">
+                <strong>Submitted</strong>
+                <span>{tabCounts.submitted}</span>
+              </TabsTrigger>
+              <TabsTrigger className="settings-tab application-tab" value="approved">
+                <strong>Approved</strong>
+                <span>{tabCounts.approved}</span>
+              </TabsTrigger>
+              <TabsTrigger className="settings-tab application-tab" value="rejected">
+                <strong>Rejected</strong>
+                <span>{tabCounts.rejected}</span>
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="recommendations" className="application-tabpanel">
+              <div className="application-recommendation-toolbar">
+                <div>
+                  <strong>Ranked recommendations</strong>
+                  <p>
+                    Based on family size, head work status, and household income
+                    {selectedRecommendationProgram ? ` for ${selectedRecommendationProgram.name}` : ''}.
+                  </p>
+                </div>
+                <label className="settings-field application-program-filter">
+                  <span>Program</span>
+                  <select
+                    value={recommendationProgramCode}
+                    onChange={(event) => setRecommendationProgramCode(event.target.value)}
+                    disabled={!programs.length}
+                  >
+                    {programs.map((program) => (
+                      <option key={program.code} value={program.code}>
+                        {program.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              {recommendationError ? <div className="auth-alert">{recommendationError}</div> : null}
+              <InteractiveTable
+                columns={recommendationColumns}
+                rows={recommendationRows}
+                rowKey="householdCode"
+                searchLabel="Search recommendations"
+                searchPlaceholder="Search household, head, barangay, or reason"
+                emptyMessage={loadingRecommendations ? 'Loading recommendations...' : 'No recommendation candidates found.'}
+                initialSortKey="rank"
+                initialSortDirection="asc"
+                gridTemplate="0.45fr 1.25fr 0.55fr 1fr 1fr 0.55fr 1.4fr 0.75fr 120px"
+              />
+            </TabsContent>
+
+            <TabsContent value="submitted" className="application-tabpanel">
+              {renderQueueTable('No submitted applications found.')}
+            </TabsContent>
+            <TabsContent value="approved" className="application-tabpanel">
+              {renderQueueTable('No approved applications found.')}
+            </TabsContent>
+            <TabsContent value="rejected" className="application-tabpanel">
+              {renderQueueTable('No rejected applications found.')}
+            </TabsContent>
+          </Tabs>
         </section>
       </div>
 

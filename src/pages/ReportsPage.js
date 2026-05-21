@@ -913,12 +913,7 @@ function ReportsPage({ session }) {
 
         {pageError ? <div className="auth-alert">{pageError}</div> : null}
 
-        {scopeLabel ? (
-          <div className="application-queue-note">
-            <strong>Barangay view</strong>
-            <p>Report outputs are scoped to <strong>{scopeLabel}</strong>.</p>
-          </div>
-        ) : isAdmin ? (
+        {!scopeLabel && isAdmin ? (
           <div className="application-queue-note">
             <strong>Municipality view</strong>
             <p>Showing data across all barangays in Barbaza. Use the selector above to drill into a specific barangay.</p>

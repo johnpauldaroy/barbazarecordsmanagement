@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import SectionHeading from '../components/SectionHeading';
 import InteractiveTable from '../components/InteractiveTable';
+import DistributionQuotaTab from '../components/DistributionQuotaTab';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
@@ -92,7 +93,7 @@ function UserActions({ user, canManageUsers, onEdit, onDeactivate }) {
   );
 }
 
-function ProgramActions({ program, canManagePrograms, onEdit, onToggleEnabled }) {
+function ProgramActions({ program, canManagePrograms, onEdit, onToggleEnabled, isToggling }) {
   if (!canManagePrograms) {
     return <Badge variant="outline">View only</Badge>;
   }
@@ -106,6 +107,7 @@ function ProgramActions({ program, canManagePrograms, onEdit, onToggleEnabled })
         variant="outline"
         size="sm"
         title={`Edit ${program.name}`}
+        disabled={isToggling}
         onClick={() => onEdit(program)}
       >
         Edit
@@ -115,9 +117,10 @@ function ProgramActions({ program, canManagePrograms, onEdit, onToggleEnabled })
         variant={isEnabled ? 'destructive' : 'default'}
         size="sm"
         title={`${isEnabled ? 'Disable' : 'Enable'} ${program.name}`}
+        disabled={isToggling}
         onClick={() => onToggleEnabled(program, !isEnabled)}
       >
-        {isEnabled ? 'Disable' : 'Enable'}
+        {isToggling ? 'Saving...' : isEnabled ? 'Disable' : 'Enable'}
       </Button>
     </div>
   );
@@ -195,7 +198,7 @@ function UserFormModal({
           <label className="settings-field" htmlFor="user-role">
             <span>Role</span>
             <select id="user-role" name="role" value={formState.role} onChange={onChange} required>
-              {roles.map((role) => (
+              {roles.filter((role) => ['super_admin', 'barangay_secretary'].includes(role.key)).map((role) => (
                 <option key={role.key} value={role.key}>
                   {role.name}
                 </option>
@@ -556,6 +559,7 @@ function SettingsPage({ session }) {
   const [programFormError, setProgramFormError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingProgram, setIsSavingProgram] = useState(false);
+  const [togglingProgramId, setTogglingProgramId] = useState('');
   const [userModalMode, setUserModalMode] = useState(null);
   const [programModalMode, setProgramModalMode] = useState(null);
   const [userForm, setUserForm] = useState({
@@ -570,6 +574,7 @@ function SettingsPage({ session }) {
   const [programForm, setProgramForm] = useState(createEmptyProgramForm);
   const canManageUsers = canManageUsersByRole(session);
   const canManagePrograms = canManageProgramsByRole(session);
+  const canManageQuotas = canManageProgramsByRole(session);
 
   useEffect(() => {
     let isMounted = true;
@@ -896,11 +901,12 @@ function SettingsPage({ session }) {
       return;
     }
 
-    if (!window.confirm(`${shouldEnable ? 'Enable' : 'Disable'} program ${program.name}?`)) {
+    if (togglingProgramId) {
       return;
     }
 
     setProgramPageError('');
+    setTogglingProgramId(program.id);
 
     try {
       await supabaseService.setProgramEnabled(program.id, shouldEnable);
@@ -908,6 +914,8 @@ function SettingsPage({ session }) {
       setPrograms(programRows);
     } catch (error) {
       setProgramPageError(error.message || `Failed to ${shouldEnable ? 'enable' : 'disable'} program.`);
+    } finally {
+      setTogglingProgramId('');
     }
   };
 
@@ -921,6 +929,9 @@ function SettingsPage({ session }) {
             </TabsTrigger>
             <TabsTrigger id="settings-tab-programs" className="settings-tab" value="programs">
               <strong>Programs</strong>
+            </TabsTrigger>
+            <TabsTrigger id="settings-tab-distributions" className="settings-tab" value="distributions">
+              <strong>Distributions</strong>
             </TabsTrigger>
           </TabsList>
         </section>
@@ -1033,6 +1044,7 @@ function SettingsPage({ session }) {
                       canManagePrograms={canManagePrograms}
                       onEdit={openEditProgram}
                       onToggleEnabled={handleToggleProgramEnabled}
+                      isToggling={togglingProgramId === row.id}
                     />
                   ),
                 },
@@ -1043,6 +1055,16 @@ function SettingsPage({ session }) {
               searchPlaceholder="Search code, program, or support type"
               emptyMessage={loadingPrograms ? 'Loading programs...' : 'No programs configured.'}
               gridTemplate="0.8fr 1.6fr 1.3fr 0.8fr 0.7fr 1fr"
+            />
+          </section>
+        </TabsContent>
+
+        <TabsContent value="distributions" className="mt-0">
+          <section className="panel" id="settings-panel-distributions" role="tabpanel" aria-labelledby="settings-tab-distributions">
+            <DistributionQuotaTab
+              barangays={barangays}
+              programs={programs}
+              canManageQuotas={canManageQuotas}
             />
           </section>
         </TabsContent>

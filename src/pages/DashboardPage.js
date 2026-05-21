@@ -174,7 +174,6 @@ function DashboardPage({ session }) {
   const [sectionErrors, setSectionErrors] = useState({});
   const roleKey = resolveSessionRoleKey(session);
   const isBarangayScopedRole = roleKey === 'barangay_secretary' || roleKey === 'barangay_staff';
-  const scopedBarangayName = session?.barangayName || '';
 
   useEffect(() => {
     async function initDashboard() {
@@ -248,13 +247,6 @@ function DashboardPage({ session }) {
           ))}
         </div>
       )}
-      {isBarangayScopedRole ? (
-        <div className="application-queue-note">
-          <strong>Barangay view</strong>
-          <p>Dashboard metrics are scoped to {scopedBarangayName || 'your assigned barangay'}.</p>
-        </div>
-      ) : null}
-
       {/* â"€â"€ Registry Overview â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
       {summary && (
         <section className="panel dashboard-registry-section">

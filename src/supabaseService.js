@@ -598,6 +598,127 @@ function mapProgramsWithRequirements(programs = [], requirements = []) {
   }));
 }
 
+function calculateRecommendationScore({ familyCount, monthlyIncome, headOccupation }) {
+  const members = Math.max(1, Number(familyCount) || 1);
+  const income = Math.max(0, Number(monthlyIncome) || 0);
+  const hasOccupation = Boolean(String(headOccupation ?? '').trim());
+  const familyScore = Math.min(members, 10) * 5;
+  const workScore = !hasOccupation && income === 0 ? 30 : (!hasOccupation || income === 0 ? 15 : 0);
+  const incomeScore = income === 0 ? 20 : income < 10000 ? 15 : income < 20000 ? 8 : 0;
+
+  return familyScore + workScore + incomeScore;
+}
+
+function buildRecommendationReasons({ familyCount, monthlyIncome, headOccupation }) {
+  const members = Math.max(1, Number(familyCount) || 1);
+  const income = Math.max(0, Number(monthlyIncome) || 0);
+  const hasOccupation = Boolean(String(headOccupation ?? '').trim());
+  const reasons = [`Family members: ${members}`];
+
+  if (!hasOccupation && income === 0) {
+    reasons.push('No work and no income recorded');
+  } else if (!hasOccupation) {
+    reasons.push('No occupation recorded');
+  } else if (income === 0) {
+    reasons.push('No income recorded');
+  }
+
+  if (income === 0) {
+    reasons.push('No income household');
+  } else if (income < 10000) {
+    reasons.push('Low income household');
+  } else if (income < 20000) {
+    reasons.push('Moderate income household');
+  }
+
+  return reasons;
+}
+
+function mapRecommendationCandidate(row, programCode) {
+  const monthlyIncome = Math.max(0, Number(row.monthly_income ?? row.monthlyIncome ?? 0) || 0);
+  const familyCount = Math.max(1, Number(row.family_count ?? row.familyCount ?? 1) || 1);
+  const headOccupation = row.head_occupation ?? row.headOccupation ?? '';
+  const score = Number(row.recommendation_score ?? row.recommendationScore)
+    || calculateRecommendationScore({ familyCount, monthlyIncome, headOccupation });
+  const quotaExists = Boolean(row.quota_exists ?? row.quotaExists);
+  const quotaIsActive = Boolean(row.quota_is_active ?? row.quotaIsActive);
+  const quotaRemaining = row.quota_remaining ?? row.quotaRemaining;
+  const isQuotaFull = quotaExists && quotaIsActive && Number(quotaRemaining ?? 0) <= 0;
+
+  return {
+    rank: Number(row.rank_position ?? row.rank ?? 0) || 0,
+    householdId: row.household_id ?? row.householdId ?? '',
+    householdCode: row.household_code ?? row.householdCode ?? '',
+    headName: row.head_name ?? row.headName ?? 'Registered household',
+    barangayId: row.barangay_id ?? row.barangayId ?? '',
+    barangayName: row.barangay_name ?? row.barangayName ?? '',
+    purokSitio: row.purok_sitio ?? row.purokSitio ?? '',
+    addressLine1: row.address_line1 ?? row.addressLine1 ?? '',
+    fullAddress: row.full_address ?? row.fullAddress ?? '',
+    familyCount,
+    monthlyIncome,
+    incomeTier: row.income_tier ?? row.incomeTier ?? classifyIncome(monthlyIncome).label,
+    headOccupation,
+    workStatus: row.work_status ?? row.workStatus ?? (headOccupation || 'No work recorded'),
+    recommendationScore: score,
+    recommendationReasons: row.recommendation_reasons ?? row.recommendationReasons ?? buildRecommendationReasons({
+      familyCount,
+      monthlyIncome,
+      headOccupation,
+    }),
+    quota: quotaExists
+      ? {
+          id: row.quota_id ?? row.quotaId ?? '',
+          max: Number(row.quota_max ?? row.quotaMax ?? 0),
+          used: Number(row.quota_used ?? row.quotaUsed ?? 0),
+          remaining: Number(quotaRemaining ?? 0),
+          isActive: quotaIsActive,
+        }
+      : null,
+    isQuotaFull,
+    programCode,
+  };
+}
+
+function buildDemoRecommendationCandidates(programCode) {
+  const scope = getScopedBarangayScope();
+  const rows = (demoData.householdRows ?? [])
+    .filter((household) => !scope.isScopedRole || normalizeText(household.barangay) === normalizeText(scope.barangayName))
+    .map((household) => {
+      const familyCount = Number(household.members) || (1 + (household.familyMembers?.length ?? 0));
+      const monthlyIncome = Number(household.headMonthlyIncome ?? household.monthlyIncome ?? 0) || 0;
+      const headOccupation = household.headOccupation || '';
+      const fullAddress = [
+        household.purokSitio,
+        household.addressLine1,
+        household.barangay,
+        'Barbaza',
+        'Antique',
+      ].filter(Boolean).join(', ');
+
+      return mapRecommendationCandidate({
+        householdId: household.id || household.code,
+        householdCode: household.code,
+        headName: household.head,
+        barangayName: household.barangay,
+        purokSitio: household.purokSitio,
+        addressLine1: household.addressLine1,
+        fullAddress,
+        familyCount,
+        monthlyIncome,
+        headOccupation,
+      }, programCode);
+    })
+    .sort((left, right) => (
+      right.recommendationScore - left.recommendationScore
+      || left.monthlyIncome - right.monthlyIncome
+      || right.familyCount - left.familyCount
+      || left.householdCode.localeCompare(right.householdCode)
+    ));
+
+  return rows.map((row, index) => ({ ...row, rank: index + 1 }));
+}
+
 function isNotFoundError(error) {
   return error?.code === 'PGRST116';
 }
@@ -1603,6 +1724,7 @@ export const supabaseService = {
             reference: application.application_no,
             applicant: application.applicant_name || 'Unknown applicant',
             barangay: application.barangay_name || 'Unknown barangay',
+            barangayId: application.barangay_id || null,
             program: application.program_names || 'Unassigned',
             status: formatStatusLabel(application.current_status),
             tone: statusTone(application.current_status),
@@ -1862,6 +1984,8 @@ export const supabaseService = {
           documents,
           meta: {
             applicationId: application.id,
+            barangayId: application.barangay_id,
+            programIds: programRows.map((p) => p.program_id).filter(Boolean),
             currentStatus: application.current_status,
             uploadedRequirementCount,
           },
@@ -4622,6 +4746,160 @@ export const supabaseService = {
         }));
       },
       'Failed to search households.'
+    );
+  },
+
+  async getRecommendationCandidates({ programCode, year, barangayId } = {}) {
+    return runServiceQuery(
+      async () => {
+        if (!programCode) {
+          return [];
+        }
+
+        const targetYear = year ?? new Date().getFullYear();
+        const scope = getScopedBarangayScope();
+        const targetBarangayId = barangayId || (scope.isScopedRole ? scope.barangayId : null);
+
+        if (scope.isScopedRole) {
+          assertBarangayScopeForRead();
+        }
+
+        const { data, error } = await supabase.rpc('get_recommendation_candidates', {
+          p_program_code: programCode,
+          p_year: targetYear,
+          p_barangay_id: targetBarangayId,
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        return (data ?? []).map((row) => mapRecommendationCandidate(row, programCode));
+      },
+      () => buildDemoRecommendationCandidates(programCode),
+      'Failed to load recommendation candidates.'
+    );
+  },
+
+  prefillApplicationFromRecommendation(candidate = {}) {
+    return {
+      applicant: candidate.headName || '',
+      household: candidate.householdCode || '',
+      householdMonthlyIncome: candidate.monthlyIncome != null ? String(candidate.monthlyIncome) : '',
+      programCode: candidate.programCode || '',
+      barangay: candidate.barangayName || '',
+      address: candidate.fullAddress || [candidate.purokSitio, candidate.addressLine1, candidate.barangayName]
+        .filter(Boolean)
+        .join(', '),
+      note: `Recommended candidate. Score: ${candidate.recommendationScore ?? 0}. ${(candidate.recommendationReasons ?? []).join('; ')}`,
+      uploadedRequirements: {},
+    };
+  },
+
+  // ── Barangay Distribution Quotas ─────────────────────────────────────────
+
+  async getBarangayProgramQuotas(year) {
+    return runServiceQuery(
+      async () => {
+        const targetYear = year ?? new Date().getFullYear();
+        const { data, error } = await supabase
+          .from('quota_usage_view')
+          .select('quota_id, barangay_id, barangay_name, program_id, program_code, program_name, period_year, max_beneficiaries, is_active, notes, used_count, remaining_count')
+          .eq('period_year', targetYear)
+          .order('barangay_name', { ascending: true });
+
+        if (error) throw error;
+        return data ?? [];
+      },
+      [],
+      'Failed to load barangay distribution quotas.'
+    );
+  },
+
+  async upsertBarangayProgramQuota({ barangayId, programId, year, maxBeneficiaries, notes }) {
+    return runServiceQuery(
+      async () => {
+        if (!barangayId) throw new Error('Barangay is required.');
+        if (!programId) throw new Error('Program is required.');
+
+        const periodYear = Number(year) || new Date().getFullYear();
+        const max = Math.max(0, Number(maxBeneficiaries) || 0);
+
+        const payload = {
+          barangay_id: barangayId,
+          program_id: programId,
+          period_year: periodYear,
+          max_beneficiaries: max,
+          notes: notes?.trim() || null,
+          is_active: true,
+          archived_at: null,
+        };
+
+        // Try update first (match on barangay+program+year with no archived_at)
+        const { data: existing, error: fetchError } = await supabase
+          .from('barangay_program_quotas')
+          .select('id')
+          .eq('barangay_id', barangayId)
+          .eq('program_id', programId)
+          .eq('period_year', periodYear)
+          .is('archived_at', null)
+          .maybeSingle();
+
+        if (fetchError) throw fetchError;
+
+        if (existing) {
+          const { data, error } = await supabase
+            .from('barangay_program_quotas')
+            .update({ max_beneficiaries: max, notes: payload.notes, is_active: true, archived_at: null })
+            .eq('id', existing.id)
+            .select('id, barangay_id, program_id, period_year, max_beneficiaries, is_active')
+            .single();
+          if (error) throw error;
+          return data;
+        } else {
+          const { data, error } = await supabase
+            .from('barangay_program_quotas')
+            .insert(payload)
+            .select('id, barangay_id, program_id, period_year, max_beneficiaries, is_active')
+            .single();
+          if (error) throw error;
+          return data;
+        }
+      },
+      null,
+      'Failed to save distribution quota.'
+    );
+  },
+
+  async deleteBarangayProgramQuota(quotaId) {
+    return runServiceQuery(
+      async () => {
+        const { error } = await supabase
+          .from('barangay_program_quotas')
+          .update({ archived_at: new Date().toISOString(), is_active: false })
+          .eq('id', quotaId);
+        if (error) throw error;
+        return true;
+      },
+      true,
+      'Failed to remove quota entry.'
+    );
+  },
+
+  async checkBarangayQuota({ barangayId, programId, year }) {
+    return runServiceQuery(
+      async () => {
+        const targetYear = year ?? new Date().getFullYear();
+        const { data, error } = await supabase.rpc('check_barangay_quota', {
+          p_barangay_id: barangayId,
+          p_program_id: programId,
+          p_year: targetYear,
+        });
+        if (error) throw error;
+        return data?.[0] ?? null;
+      },
+      null,
+      'Failed to check barangay quota.'
     );
   },
 };

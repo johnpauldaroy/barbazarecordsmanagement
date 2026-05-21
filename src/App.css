@@ -1795,6 +1795,100 @@ body {
   color: var(--gov-text-inverse);
 }
 
+.application-tabs {
+  display: grid;
+  gap: 1rem;
+}
+
+.application-tablist {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.application-tab {
+  min-height: 3.25rem;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.application-tab[data-state="active"] {
+  border-color: var(--gov-accent);
+  background: #2a5f8d;
+  color: var(--gov-text-inverse);
+}
+
+.application-tab span {
+  min-width: 1.75rem;
+  border-radius: 999px;
+  padding: 0.16rem 0.55rem;
+  background: rgba(31, 78, 121, 0.1);
+  color: inherit;
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.application-tab[data-state="active"] span {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.application-tabpanel {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.application-recommendation-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+  gap: 1rem;
+  align-items: end;
+}
+
+.application-recommendation-toolbar p {
+  margin: 0.2rem 0 0;
+  color: var(--gov-text-secondary);
+}
+
+.application-program-filter {
+  margin: 0;
+}
+
+.recommendation-rank,
+.recommendation-score {
+  display: inline-grid;
+  min-width: 2.35rem;
+  min-height: 2.35rem;
+  place-items: center;
+  border-radius: 999px;
+  background: #eef4fa;
+  color: #1f4e79;
+  font-weight: 800;
+}
+
+.application-recommendation-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.application-recommendation-reasons span {
+  border: 1px solid #d8e2ec;
+  border-radius: 999px;
+  background: #f6f9fc;
+  color: #2c4865;
+  padding: 0.18rem 0.52rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .application-tablist,
+  .application-recommendation-toolbar {
+    grid-template-columns: 1fr;
+  }
+}
+
 .settings-field textarea {
   line-height: 1.55;
 }
