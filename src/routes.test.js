@@ -1,4 +1,4 @@
-import { getHashPath, getHashQueryParams, resolveRoute } from './routes';
+import { getHashPath, getHashQueryParams, resolveRoute } from './routeUtils';
 
 test('resolveRoute supports hash query params', () => {
   expect(resolveRoute('#/applications?filter=pending_review')).toBe('/applications');

@@ -16,7 +16,7 @@ import {
   canViewUploadedDocuments as canViewUploadedDocumentsByRole,
   resolveSessionRoleKey,
 } from '../roleAccess';
-import { getHashQueryParams } from '../routes';
+import { getHashQueryParams } from '../routeUtils';
 import { supabaseService } from '../supabaseService';
 
 function QueueActions({ item, onViewDetails }) {

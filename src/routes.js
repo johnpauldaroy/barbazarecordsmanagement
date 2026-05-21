@@ -5,6 +5,8 @@ import HouseholdsPage from './pages/HouseholdsPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
 
+export { getHashPath, getHashQueryParams, resolveRoute } from './routeUtils';
+
 const LandMapPage = lazy(() => import('./pages/LandMapPage'));
 
 function LandMapRoute(props) {
@@ -23,20 +25,3 @@ export const routes = [
   { path: '/reports', label: 'Reports', component: ReportsPage },
   { path: '/settings', label: 'Settings', component: SettingsPage },
 ];
-
-export function getHashPath(hash = '') {
-  const normalized = String(hash ?? '').replace(/^#/, '') || '/applications';
-  const [pathOnly] = normalized.split('?');
-  return pathOnly || '/applications';
-}
-
-export function getHashQueryParams(hash = '') {
-  const normalized = String(hash ?? '').replace(/^#/, '');
-  const [, queryString = ''] = normalized.split('?');
-  return new URLSearchParams(queryString);
-}
-
-export function resolveRoute(hash) {
-  const path = getHashPath(hash);
-  return routes.some((route) => route.path === path) || path === '/login' ? path : '/applications';
-}

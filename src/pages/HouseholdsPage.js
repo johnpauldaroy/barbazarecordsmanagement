@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { getHashQueryParams } from '../routes';
+import { useEffect, useRef, useState, useMemo } from 'react';
+import { getHashQueryParams } from '../routeUtils';
 import InteractiveTable from '../components/InteractiveTable';
 import SectionHeading from '../components/SectionHeading';
 import { Button } from '../components/ui/button';
@@ -12,6 +12,19 @@ import {
   resolveSessionRoleKey,
 } from '../roleAccess';
 import { supabaseService } from '../supabaseService';
+
+// Add Leaflet imports for interactive map
+import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+
+// Fix for Leaflet default marker icons not appearing in modern build environments
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
 
 function IncomeBadge({ monthlyIncome }) {
   const tier = classifyIncome(monthlyIncome);
@@ -279,6 +292,67 @@ function FieldRow({ label, htmlFor, children, wide }) {
   );
 }
 
+function LocationMarker({ center, onChange }) {
+  const markerRef = useRef(null);
+  const eventHandlers = useMemo(
+    () => ({
+      dragend() {
+        const marker = markerRef.current;
+        if (marker != null) {
+          const pos = marker.getLatLng();
+          onChange({ target: { name: 'latitude', value: pos.lat.toFixed(6) } });
+          onChange({ target: { name: 'longitude', value: pos.lng.toFixed(6) } });
+        }
+      },
+    }),
+    [onChange]
+  );
+
+  return (
+    <Marker
+      draggable={true}
+      eventHandlers={eventHandlers}
+      position={center}
+      ref={markerRef}
+    />
+  );
+}
+
+function MapViewUpdater({ center, isValid }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (isValid) {
+      map.setView(center, 16);
+    }
+  }, [center, isValid, map]);
+
+  return null;
+}
+
+function MapPicker({ latitude, longitude, onChange }) {
+  const lat = parseFloat(latitude);
+  const lng = parseFloat(longitude);
+  const isValid = !isNaN(lat) && !isNaN(lng);
+  const center = useMemo(
+    () => (isValid ? [lat, lng] : [11.2198, 122.0381]),
+    [isValid, lat, lng]
+  );
+
+  return (
+    <div className="household-map-container" style={{ height: '280px', width: '100%', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e5e7eb', marginTop: '12px' }}>
+      <MapContainer center={center} zoom={15} scrollWheelZoom={false} style={{ height: '100%', width: '100%' }}>
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        />
+        <LocationMarker center={center} onChange={onChange} />
+        <MapViewUpdater center={center} isValid={isValid} />
+      </MapContainer>
+    </div>
+  );
+}
+
 function SelectField({ id, name, value, onChange, options, disabled, placeholder }) {
   return (
     <select id={id} name={name} value={value} onChange={onChange} disabled={disabled}>
@@ -428,6 +502,12 @@ function HouseholdFormModal({
           <div className="household-form-section">
             <p className="household-form-section__label">Household details</p>
             <div className="household-form-grid gap-4">
+              <div className="household-form-grid__wide space-y-4">
+                <FieldRow label="Address" htmlFor="hh-address">
+                  <Input id="hh-address" name="addressLine1" value={formState.addressLine1} onChange={onChange} placeholder="Street / area description" required />
+                </FieldRow>
+              </div>
+              
               <FieldRow label="Household code" htmlFor="hh-code">
                 <Input
                   id="hh-code"
@@ -458,9 +538,6 @@ function HouseholdFormModal({
               <FieldRow label="Purok / Sitio" htmlFor="hh-purok">
                 <Input id="hh-purok" name="purokSitio" value={formState.purokSitio} onChange={onChange} placeholder="Purok 3" />
               </FieldRow>
-              <FieldRow label="Address" htmlFor="hh-address" wide>
-                <Input id="hh-address" name="addressLine1" value={formState.addressLine1} onChange={onChange} placeholder="Street / area description" required />
-              </FieldRow>
               <FieldRow label="Latitude" htmlFor="hh-lat">
                 <Input
                   id="hh-lat"
@@ -489,17 +566,48 @@ function HouseholdFormModal({
               </FieldRow>
               <div className="household-form-grid__wide hh-geotag-actions">
                 <div className="hh-geotag-actions__row">
-                  <Button type="button" variant="outline" size="sm" onClick={onUseCurrentLocation} disabled={isLocatingGeo}>
-                    {isLocatingGeo ? 'Locating...' : 'Use current location'}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={onUseCurrentLocation} disabled={isLocatingGeo}>
+                      {isLocatingGeo ? 'Locating...' : 'Use current location'}
+                    </Button>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={async () => {
+                        // Limit geocoding search strictly to Barbaza, Antique area
+                        const query = `${formState.addressLine1}, ${formState.barangay}, Barbaza, Antique`;
+                        const viewbox = '121.95,11.35,122.15,11.10'; // West, North, East, South
+                        try {
+                          const res = await fetch(
+                            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&viewbox=${viewbox}&bounded=1`
+                          );
+                          const data = await res.json();
+                          if (data && data.length > 0) {
+                            onChange({ target: { name: 'latitude', value: data[0].lat } });
+                            onChange({ target: { name: 'longitude', value: data[0].lon } });
+                          } else {
+                            alert("Address not found within Barbaza, Antique. Please pinpoint manually on the map.");
+                          }
+                        } catch (e) {
+                          console.error("Geocoding failed", e);
+                        }
+                      }}
+                    >
+                      Find from address
+                    </Button>
+                  </div>
                   {hasValidCoordinates ? (
                     <a href={openInMapUrl} target="_blank" rel="noopener noreferrer" className="hh-geotag-link">
                       Open in map
                     </a>
                   ) : null}
                 </div>
-                <small>Coordinates are used to point this household on the Land Map.</small>
+                <small>You can drag the map marker to adjust the exact household location.</small>
                 {geoError ? <small className="auth-alert">{geoError}</small> : null}
+                
+                {/* Interactive Map Component */}
+                <MapPicker latitude={formState.latitude} longitude={formState.longitude} onChange={onChange} />
               </div>
             </div>
           </div>
@@ -775,7 +883,7 @@ function HouseholdProfileModal({ household, details, onClose }) {
               />
             ) : null}
             <ProfileField label="School / studying" value={h.headSchoolBackground} />
-            <ProfileField label="Address" value={[h.purokSitio, h.addressLine1, h.barangay].filter(Boolean).join(', ')} />
+            <ProfileField label="Address" value={[h.purokSitio, h.addressLine1, h.barangay, 'Barbaza, Antique'].filter(Boolean).join(', ')} />
           </div>
         </section>
 
