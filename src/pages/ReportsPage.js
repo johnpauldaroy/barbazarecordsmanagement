@@ -486,6 +486,30 @@ function HouseholdsTab({ rows, lowIncomeByBarangay, isBarangayScoped, scopedBara
   );
 }
 
+// ── Release Report tab ────────────────────────────────────────────────────────
+
+const RELEASE_COLUMNS = [
+  { key: 'reference',       header: 'Reference No.',  width: '150px' },
+  { key: 'applicant',       header: 'Applicant' },
+  { key: 'household',       header: 'Household',      width: '130px' },
+  { key: 'barangay',        header: 'Barangay',       width: '130px' },
+  { key: 'program',         header: 'Program',        width: '160px' },
+  { key: 'amountFormatted', header: 'Amount',         width: '120px', align: 'right' },
+  { key: 'releasedAt',      header: 'Date Released',  width: '120px' },
+  { key: 'remarks',         header: 'Remarks' },
+];
+
+const RELEASE_EXPORT_COLS = [
+  { key: 'reference',       header: 'Reference No.' },
+  { key: 'applicant',       header: 'Applicant' },
+  { key: 'household',       header: 'Household' },
+  { key: 'barangay',        header: 'Barangay' },
+  { key: 'program',         header: 'Program' },
+  { key: 'amountFormatted', header: 'Approved Amount' },
+  { key: 'releasedAt',      header: 'Date Released' },
+  { key: 'remarks',         header: 'Remarks' },
+];
+
 // ── Assistance tab ────────────────────────────────────────────────────────────
 
 const ASSIST_COLUMNS = [
@@ -737,6 +761,12 @@ function ReportsPage({ session }) {
   const [byProgram, setByProgram] = useState([]);
   const [allBarangays, setAllBarangays] = useState([]);
 
+  const [releaseRows, setReleaseRows] = useState([]);
+  const [releaseFromDate, setReleaseFromDate] = useState('');
+  const [releaseToDate, setReleaseToDate] = useState('');
+  const [releaseSearch, setReleaseSearch] = useState('');
+  const [loadingRelease, setLoadingRelease] = useState(false);
+
   const roleKey = resolveSessionRoleKey(session);
   const isAdmin = roleKey === 'admin';
   const isBarangayScoped = roleKey === 'barangay_secretary' || roleKey === 'barangay_staff';
@@ -787,6 +817,28 @@ function ReportsPage({ session }) {
     return () => { isMounted = false; };
   }, [session, isAdmin]);
 
+  useEffect(() => {
+    if (activeTab !== 'release') return;
+    let isMounted = true;
+    async function loadRelease() {
+      setLoadingRelease(true);
+      try {
+        supabaseService.setSessionContext(session);
+        const rows = await supabaseService.getReleaseReport({
+          fromDate: releaseFromDate || null,
+          toDate: releaseToDate || null,
+        });
+        if (isMounted) setReleaseRows(rows);
+      } catch {
+        if (isMounted) setReleaseRows([]);
+      } finally {
+        if (isMounted) setLoadingRelease(false);
+      }
+    }
+    void loadRelease();
+    return () => { isMounted = false; };
+  }, [activeTab, releaseFromDate, releaseToDate, session]);
+
   // Filter all data by the selected barangay (admin only)
   const filteredAppRows = useMemo(() =>
     isFiltered ? applicationsRows.filter((r) => r.barangay === effectiveBarangay) : applicationsRows,
@@ -832,6 +884,25 @@ function ReportsPage({ session }) {
       .reduce((s, r) => s + r.amount, 0);
     return { rows, totalReleased, releasedThisMonth };
   }, [assistanceData, isFiltered, effectiveBarangay]);
+
+  const filteredReleaseRows = useMemo(() => {
+    let rows = isFiltered ? releaseRows.filter((r) => r.barangay === effectiveBarangay) : releaseRows;
+    if (releaseSearch) {
+      const q = releaseSearch.toLowerCase();
+      rows = rows.filter((r) =>
+        r.reference?.toLowerCase().includes(q) ||
+        r.applicant?.toLowerCase().includes(q) ||
+        r.barangay?.toLowerCase().includes(q) ||
+        r.program?.toLowerCase().includes(q)
+      );
+    }
+    return rows;
+  }, [releaseRows, isFiltered, effectiveBarangay, releaseSearch]);
+
+  const releaseTotalAmount = useMemo(
+    () => filteredReleaseRows.reduce((sum, r) => sum + (r.approvedAmount ?? 0), 0),
+    [filteredReleaseRows]
+  );
 
   // Build a highlights/households view scoped to the selected barangay for admin
   const filteredHouseholds = useMemo(() => {
@@ -903,6 +974,7 @@ function ReportsPage({ session }) {
               { value: 'households',   label: 'Households' },
               { value: 'assistance',   label: 'Assistance' },
               { value: 'workload',     label: 'Workload' },
+              { value: 'release',      label: 'Release Report' },
             ].map((tab) => (
               <TabsTrigger key={tab.value} className="settings-tab reports-tab" value={tab.value}>
                 <strong>{tab.label}</strong>
@@ -961,6 +1033,97 @@ function ReportsPage({ session }) {
             isBarangayScoped={isFiltered}
             scopedBarangayName={effectiveBarangay}
           />
+        </TabsContent>
+
+        <TabsContent value="release" className="mt-0">
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '12px', alignItems: 'flex-end' }}>
+            <label className="settings-field" style={{ minWidth: '160px' }}>
+              <span>From date</span>
+              <input
+                type="date"
+                className="reports-search-input"
+                value={releaseFromDate}
+                onChange={(e) => setReleaseFromDate(e.target.value)}
+              />
+            </label>
+            <label className="settings-field" style={{ minWidth: '160px' }}>
+              <span>To date</span>
+              <input
+                type="date"
+                className="reports-search-input"
+                value={releaseToDate}
+                onChange={(e) => setReleaseToDate(e.target.value)}
+              />
+            </label>
+            <label className="settings-field" style={{ flex: 1, minWidth: '200px' }}>
+              <span>Search</span>
+              <input
+                type="text"
+                className="reports-search-input"
+                placeholder="Reference, applicant, barangay, program…"
+                value={releaseSearch}
+                onChange={(e) => setReleaseSearch(e.target.value)}
+              />
+            </label>
+          </div>
+
+          <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+            <div className="records-modal__card" style={{ flex: 1 }}>
+              <span>Total beneficiaries</span>
+              <strong>{filteredReleaseRows.length}</strong>
+            </div>
+            <div className="records-modal__card" style={{ flex: 1 }}>
+              <span>Total amount released</span>
+              <strong>
+                {releaseTotalAmount > 0
+                  ? `₱${releaseTotalAmount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
+                  : '₱0.00'}
+              </strong>
+            </div>
+          </div>
+
+          <ExportBar
+            label={`${filteredReleaseRows.length} record(s)`}
+            disabled={filteredReleaseRows.length === 0}
+            onCsv={() => exportToCsv('release-report', RELEASE_EXPORT_COLS, filteredReleaseRows)}
+            onPdf={() => exportToPdf(
+              'release-report',
+              'Release of Assistance Report',
+              RELEASE_EXPORT_COLS,
+              filteredReleaseRows,
+              `Municipality of Barbaza, Antique — MSWD Office — Generated ${new Date().toLocaleDateString('en-PH')}`
+            )}
+          />
+
+          {loadingRelease ? (
+            <p style={{ color: '#6b7280', padding: '1rem 0', fontSize: '0.9rem' }}>Loading release report…</p>
+          ) : (
+            <ReportTable
+              columns={RELEASE_COLUMNS}
+              rows={filteredReleaseRows}
+              emptyMessage="No released applications found for the selected filters."
+            />
+          )}
+
+          <div className="release-signature-block">
+            <p style={{ marginBottom: '1rem', fontSize: '0.9rem' }}>
+              I/We hereby acknowledge receipt of the above-stated assistance from the Municipal Social Welfare and Development Office (MSWDO) of Barbaza, Antique.
+            </p>
+            <div className="release-signature-block__grid">
+              <div>
+                <div className="release-signature-block__line" />
+                <span>Beneficiary Signature over Printed Name</span>
+              </div>
+              <div>
+                <div className="release-signature-block__line" />
+                <span>MSWD Officer / Releasing Officer</span>
+              </div>
+              <div>
+                <div className="release-signature-block__line" />
+                <span>Date</span>
+              </div>
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

@@ -139,6 +139,48 @@ function getWorkflowActions(record, canApproveApplications) {
   return [];
 }
 
+function generateSuggestedRemark(record, nextStatus) {
+  const applicant = record.applicant || 'the applicant';
+  const program = record.program || 'the program';
+  const household = record.household || '';
+  const intakeNote = record.checks?.find((c) => c.title === 'Processor note')?.description || '';
+  const hasIntakeNote = intakeNote && intakeNote !== 'No internal note was recorded during intake.';
+  const missingDocsCheck = record.checks?.find((c) => c.title === 'Requirements');
+  const allDocsComplete = missingDocsCheck?.state === 'complete';
+
+  if (nextStatus === 'approved') {
+    const parts = [
+      `Application of ${applicant}${household ? ` (${household})` : ''} reviewed and approved for ${program}.`,
+    ];
+    if (allDocsComplete) {
+      parts.push('All required documents have been verified and are in order.');
+    }
+    if (hasIntakeNote) {
+      parts.push(`Intake note: ${intakeNote}`);
+    }
+    parts.push('Approved subject to availability of funds and compliance with program guidelines.');
+    return parts.join(' ');
+  }
+
+  if (nextStatus === 'rejected') {
+    return `Application of ${applicant}${household ? ` (${household})` : ''} for ${program} does not meet the eligibility criteria at this time. `;
+  }
+
+  if (nextStatus === 'needs_more_info') {
+    return `Additional documents or information are required to process the application of ${applicant} for ${program}. Please submit the missing requirements at the MSWD office.`;
+  }
+
+  if (nextStatus === 'under_review') {
+    return `Application of ${applicant} for ${program} is now under review by MSWD staff.`;
+  }
+
+  if (nextStatus === 'released') {
+    return `Assistance for ${applicant}${household ? ` (${household})` : ''} under ${program} has been released. Please acknowledge receipt.`;
+  }
+
+  return '';
+}
+
 function AddApplicationModal({
   formState,
   selectedProgram,
@@ -151,6 +193,8 @@ function AddApplicationModal({
   onRemoveRequirementFile,
   errorMessage,
   isSaving,
+  duplicateCheck,
+  duplicateLoading,
   onClose,
   onSubmit,
   suggestions,
@@ -232,6 +276,29 @@ function AddApplicationModal({
                 Suggested based on household eligibility and quota availability.
               </small>
             ) : null}
+            {duplicateLoading && (
+              <small style={{ color: '#6b7280' }}>Checking for duplicate applications…</small>
+            )}
+            {!duplicateLoading && duplicateCheck?.isDuplicate && (
+              <div style={{
+                background: '#fef2f2',
+                border: '1px solid #fca5a5',
+                borderRadius: '6px',
+                padding: '8px 12px',
+                marginTop: '6px',
+              }}>
+                <strong style={{ color: '#dc2626', fontSize: '13px' }}>Duplicate application detected</strong>
+                <p style={{ color: '#7f1d1d', fontSize: '12px', margin: '4px 0 0' }}>
+                  {duplicateCheck.reason}
+                </p>
+                {duplicateCheck.conflictingRef && (
+                  <p style={{ color: '#7f1d1d', fontSize: '12px', margin: '2px 0 0' }}>
+                    Existing ref: <strong>{duplicateCheck.conflictingRef}</strong>
+                    {duplicateCheck.conflictingStatus ? ` (${duplicateCheck.conflictingStatus})` : ''}
+                  </p>
+                )}
+              </div>
+            )}
           </label>
 
           <label className="settings-field">
@@ -345,7 +412,7 @@ function AddApplicationModal({
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSaving}>
+            <Button type="submit" disabled={isSaving || !!duplicateCheck?.isDuplicate || duplicateLoading}>
               {isSaving ? 'Saving...' : 'Add application'}
             </Button>
           </div>
@@ -365,9 +432,11 @@ function ApplicationDetailsModal({
   transitionError,
 }) {
   const [remarks, setRemarks] = useState('');
+  const [approvedAmount, setApprovedAmount] = useState('');
   const [localError, setLocalError] = useState('');
   const [quotaWarning, setQuotaWarning] = useState(null);
   const workflowActions = getWorkflowActions(record, canApproveApplications);
+  const showAmountInput = workflowActions.some((a) => ['approved', 'released'].includes(a.status));
 
   const willApproveOrRelease = workflowActions.some((a) => ['approved', 'released'].includes(a.status));
 
@@ -415,9 +484,13 @@ function ApplicationDetailsModal({
       setLocalError('Remarks are required when requesting more information or rejecting an application.');
       return;
     }
+    if (['approved', 'released'].includes(nextStatus) && (!approvedAmount || Number(approvedAmount) <= 0)) {
+      setLocalError('Please enter the approved amount (PHP) before proceeding.');
+      return;
+    }
 
     setLocalError('');
-    onTransition(nextStatus, trimmedRemarks);
+    onTransition(nextStatus, trimmedRemarks, Number(approvedAmount) || null);
   };
 
   return (
@@ -480,6 +553,19 @@ function ApplicationDetailsModal({
                 tone={record.meta?.currentStatus === 'approved' ? 'good' : 'warning'}
               />
             </div>
+            {showAmountInput && (
+              <label className="settings-field">
+                <span>Approved amount (PHP)</span>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={approvedAmount}
+                  onChange={(event) => setApprovedAmount(event.target.value)}
+                  placeholder="0.00"
+                />
+              </label>
+            )}
             <label className="settings-field">
               <span>Decision remarks</span>
               <Textarea
@@ -488,6 +574,31 @@ function ApplicationDetailsModal({
                 rows={3}
                 placeholder="Add review notes, missing requirements, approval basis, or rejection reason"
               />
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
+                {workflowActions.map((action) => {
+                  const suggested = generateSuggestedRemark(record, action.status);
+                  if (!suggested) return null;
+                  return (
+                    <button
+                      key={action.status}
+                      type="button"
+                      onClick={() => setRemarks(suggested)}
+                      style={{
+                        fontSize: '11px',
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        border: '1px solid #d1d5db',
+                        background: '#f9fafb',
+                        color: '#374151',
+                        cursor: 'pointer',
+                        lineHeight: '1.6',
+                      }}
+                    >
+                      Use {action.label.toLowerCase()} note
+                    </button>
+                  );
+                })}
+              </div>
             </label>
             {quotaWarning ? (
               <div className={`auth-alert${quotaWarning.isFull ? '' : ' auth-alert--warning'}`}>
@@ -633,6 +744,7 @@ function ApplicationsPage({ session }) {
   const [newApplication, setNewApplication] = useState({
     applicant: '',
     household: '',
+    householdId: '',
     householdMonthlyIncome: '',
     programCode: '',
     barangay: '',
@@ -640,6 +752,8 @@ function ApplicationsPage({ session }) {
     note: '',
     uploadedRequirements: {},
   });
+  const [duplicateCheck, setDuplicateCheck] = useState(null);
+  const [duplicateLoading, setDuplicateLoading] = useState(false);
 
   const [suggestions, setSuggestions] = useState([]);
   const [activeSuggestionField, setActiveSuggestionField] = useState(null);
@@ -824,6 +938,7 @@ function ApplicationsPage({ session }) {
       ...current,
       applicant: '',
       household: '',
+      householdId: '',
       householdMonthlyIncome: '',
       programCode: programs[0]?.code || '',
       barangay: isBarangayScopedRole ? (scopedBarangayName || barangays[0]?.name || '') : (barangays[0]?.name || ''),
@@ -833,7 +948,36 @@ function ApplicationsPage({ session }) {
     }));
     setSuggestions([]);
     setActiveSuggestionField(null);
+    setDuplicateCheck(null);
   };
+
+  useEffect(() => {
+    const householdId = newApplication.householdId;
+    const programCode = newApplication.programCode;
+
+    if (!showAddModal || !householdId || !programCode) {
+      setDuplicateCheck(null);
+      return;
+    }
+
+    const program = programs.find((p) => p.code === programCode);
+    if (!program?.id) {
+      setDuplicateCheck(null);
+      return;
+    }
+
+    let cancelled = false;
+    setDuplicateLoading(true);
+    setDuplicateCheck(null);
+
+    supabaseService
+      .checkApplicationDuplicate({ householdId, programId: program.id })
+      .then((result) => { if (!cancelled) setDuplicateCheck(result); })
+      .catch(() => { if (!cancelled) setDuplicateCheck(null); })
+      .finally(() => { if (!cancelled) setDuplicateLoading(false); });
+
+    return () => { cancelled = true; };
+  }, [newApplication.householdId, newApplication.programCode, programs, showAddModal]);
 
   const openDetails = async (reference) => {
     setDetailReference(reference);
@@ -860,7 +1004,7 @@ function ApplicationsPage({ session }) {
     }
   };
 
-  const handleApplicationTransition = async (nextStatus, remarks) => {
+  const handleApplicationTransition = async (nextStatus, remarks, approvedAmount) => {
     if (!selectedCase) {
       return;
     }
@@ -874,6 +1018,7 @@ function ApplicationsPage({ session }) {
         applicationId: selectedCase.meta?.applicationId,
         status: nextStatus,
         remarks,
+        approvedAmount,
         currentRecord: selectedCase,
       });
 
@@ -1057,7 +1202,12 @@ function ApplicationsPage({ session }) {
       setRecommendationRefreshKey((current) => current + 1);
       resetApplicationForm();
     } catch (error) {
-      setSaveError(error.message || 'Failed to save the application to Supabase.');
+      const msg = error?.message ?? '';
+      if (msg.includes('Duplicate application:')) {
+        setSaveError(msg.replace('Duplicate application: ', ''));
+      } else {
+        setSaveError(msg || 'Failed to save the application to Supabase.');
+      }
     } finally {
       setIsSaving(false);
     }
@@ -1278,15 +1428,6 @@ function ApplicationsPage({ session }) {
           <div className="panel-header">
           <SectionHeading eyebrow="Queue" title="Assigned applications" />
             <div className="panel-header__actions">
-              {canCreateApplications ? (
-                <Button
-                  type="button"
-                  onClick={() => setShowAddModal(true)}
-                  disabled={!programs.length || !barangays.length}
-                >
-                  Add application
-                </Button>
-              ) : null}
             </div>
           </div>
 
@@ -1427,6 +1568,8 @@ function ApplicationsPage({ session }) {
           onRemoveRequirementFile={removeRequirementFile}
           errorMessage={saveError}
           isSaving={isSaving}
+          duplicateCheck={duplicateCheck}
+          duplicateLoading={duplicateLoading}
           suggestions={suggestions}
           activeField={activeSuggestionField}
           onSelectSuggestion={handleSelectSuggestion}

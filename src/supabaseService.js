@@ -4558,6 +4558,87 @@ export const supabaseService = {
     );
   },
 
+  async getReleaseReport({ barangayId = null, fromDate = null, toDate = null } = {}) {
+    return runServiceQuery(
+      async () => {
+        const scope = getScopedBarangayScope();
+        assertBarangayScopeForRead();
+
+        let query = supabase
+          .from('applications')
+          .select(`
+            id,
+            application_no,
+            decided_at,
+            barangay_id,
+            barangay:barangays(name),
+            resident:residents(first_name, middle_name, last_name, suffix_name),
+            household:households(household_code),
+            application_programs(
+              approved_amount,
+              decision_notes,
+              program:social_programs(name, code)
+            ),
+            status_history(
+              to_status,
+              remarks,
+              changed_at,
+              changed_by,
+              profile:profiles(display_name)
+            )
+          `)
+          .eq('current_status', 'released')
+          .is('archived_at', null)
+          .order('decided_at', { ascending: false });
+
+        if (scope.isScopedRole && scope.barangayId) {
+          query = query.eq('barangay_id', scope.barangayId);
+        } else if (barangayId) {
+          query = query.eq('barangay_id', barangayId);
+        }
+
+        if (fromDate) query = query.gte('decided_at', fromDate);
+        if (toDate)   query = query.lte('decided_at', toDate);
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        return (data ?? []).map((row) => {
+          const ap = row.application_programs?.[0] ?? {};
+          const releaseHistory = (row.status_history ?? [])
+            .filter((h) => h.to_status === 'released')
+            .sort((a, b) => new Date(b.changed_at) - new Date(a.changed_at))[0] ?? null;
+
+          const resident = row.resident;
+          const applicantName = resident
+            ? [resident.first_name, resident.middle_name, resident.last_name, resident.suffix_name]
+                .filter(Boolean).join(' ')
+            : 'Unknown';
+
+          return {
+            reference: row.application_no,
+            applicant: applicantName,
+            household: row.household?.household_code ?? '—',
+            barangay: row.barangay?.name ?? '—',
+            program: ap.program?.name ?? ap.program?.code ?? '—',
+            approvedAmount: Number(ap.approved_amount ?? 0),
+            amountFormatted: ap.approved_amount
+              ? `₱${Number(ap.approved_amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
+              : '—',
+            releasedAt: row.decided_at
+              ? new Date(row.decided_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
+              : '—',
+            releasedAtRaw: row.decided_at ?? '',
+            remarks: releaseHistory?.remarks ?? ap.decision_notes ?? '—',
+            releasedBy: releaseHistory?.profile?.display_name ?? 'MSWD Staff',
+          };
+        });
+      },
+      [],
+      'Failed to load release report.'
+    );
+  },
+
   async getApplicationsReport() {
     return runServiceQuery(
       async () => {
@@ -4828,6 +4909,7 @@ export const supabaseService = {
     return {
       applicant: candidate.headName || '',
       household: candidate.householdCode || '',
+      householdId: candidate.householdId || '',
       householdMonthlyIncome: candidate.monthlyIncome != null ? String(candidate.monthlyIncome) : '',
       programCode: candidate.programCode || '',
       barangay: candidate.barangayName || '',
@@ -4947,6 +5029,31 @@ export const supabaseService = {
       },
       null,
       'Failed to check barangay quota.'
+    );
+  },
+
+  async checkApplicationDuplicate({ householdId, programId, year }) {
+    return runServiceQuery(
+      async () => {
+        const targetYear = year ?? new Date().getFullYear();
+        const { data, error } = await supabase
+          .rpc('check_application_duplicate', {
+            p_household_id: householdId,
+            p_program_id: programId,
+            p_year: targetYear,
+          })
+          .single();
+        if (error) throw error;
+        return {
+          isDuplicate: data?.is_duplicate ?? false,
+          reason: data?.duplicate_reason ?? null,
+          conflictingRef: data?.conflicting_application_no ?? null,
+          conflictingStatus: data?.conflicting_status ?? null,
+          daysSinceLast: data?.days_since_last ?? null,
+        };
+      },
+      { isDuplicate: false, reason: null, conflictingRef: null, conflictingStatus: null, daysSinceLast: null },
+      'Failed to check for duplicate applications.'
     );
   },
 };

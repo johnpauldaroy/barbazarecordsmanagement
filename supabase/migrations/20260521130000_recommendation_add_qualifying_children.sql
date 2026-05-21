@@ -1,6 +1,9 @@
 -- Adds qualifying_children_count to get_recommendation_candidates RPC.
 -- This field is used by the frontend to determine 4Ps eligibility
 -- (requires low income + 2 or more children aged 5–18).
+-- DROP required because CREATE OR REPLACE cannot change the return type.
+
+drop function if exists public.get_recommendation_candidates(text, integer, uuid);
 
 create or replace function public.get_recommendation_candidates(
   p_program_code text,
@@ -87,8 +90,8 @@ as $$
           and hm.archived_at is null
           and r.archived_at is null
           and r.status = 'active'
-          and r.date_of_birth is not null
-          and date_part('year', age(r.date_of_birth)) between 5 and 18
+          and r.birth_date is not null
+          and date_part('year', age(r.birth_date)) between 5 and 18
       ) as qualifying_children_count
     from public.households h
     join public.barangays b on b.id = h.barangay_id
