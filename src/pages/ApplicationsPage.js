@@ -1464,22 +1464,10 @@ function ApplicationsPage({ session }) {
         </section>
 
         <section className="panel application-panel space-y-4">
-          <div className="panel-header">
-          <SectionHeading eyebrow="Queue" title="Assigned applications" />
-            <div className="panel-header__actions">
-            </div>
-          </div>
-
           {isBarangayScopedRole ? (
             <div className="application-queue-note">
               <strong>Barangay view</strong>
               <p>Showing records for {scopedBarangayName || 'your assigned barangay'} only.</p>
-            </div>
-          ) : null}
-          {!canCreateApplications ? (
-            <div className="application-queue-note">
-              <strong>View only</strong>
-              <p>Your role cannot create applications.</p>
             </div>
           ) : null}
           {queueIntent.label ? (
