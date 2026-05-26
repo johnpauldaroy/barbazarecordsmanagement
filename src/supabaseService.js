@@ -2991,7 +2991,10 @@ export const supabaseService = {
               continue;
             }
 
-            const decisionStatus = normalizeWorkflowStatus(programRow?.decision_status || application.current_status);
+            const rawDecisionStatus = normalizeWorkflowStatus(programRow?.decision_status);
+            const decisionStatus = ['approved', 'released'].includes(rawDecisionStatus)
+              ? rawDecisionStatus
+              : normalizeWorkflowStatus(application.current_status);
             if (!['approved', 'released'].includes(decisionStatus)) {
               continue;
             }
