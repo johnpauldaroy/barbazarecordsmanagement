@@ -56,8 +56,8 @@ function getLegendKey(programs = []) {
 
   const normalized = programs.map((program) => normalizeProgramToken(program));
   const has4Ps = normalized.some((program) => program.includes('4ps') || program.includes('pantawid'));
-  const hasAics = normalized.some((program) => program.includes('aics'));
-  const hasTupad = normalized.some((program) => program.includes('tupad'));
+  const hasAics = normalized.some((program) => program.includes('aics') || program.includes('assistancetoindividuals'));
+  const hasTupad = normalized.some((program) => program.includes('tupad') || program.includes('tulongpanghanapbuhay'));
 
   if (has4Ps) {
     return 'fourps';
