@@ -279,6 +279,7 @@ export function ProgramAvailChart({ programAvail = {} }) {
   );
 }
 
+
 // ── Gender Pie Chart ─────────────────────────────────────────────────────────
 
 export function GenderPieChart({ genderBreakdown = {} }) {
@@ -314,15 +315,13 @@ export function GenderPieChart({ genderBreakdown = {} }) {
 
   const chartData = {
     labels: slices.map((s) => s.label),
-    datasets: [
-      {
-        data: slices.map((s) => s.count),
-        backgroundColor: slices.map((s) => s.color + 'cc'),
-        hoverBackgroundColor: slices.map((s) => s.color),
-        borderWidth: 2,
-        borderColor: '#ffffff',
-      },
-    ],
+    datasets: [{
+      data: slices.map((s) => s.count),
+      backgroundColor: slices.map((s) => s.color + 'cc'),
+      hoverBackgroundColor: slices.map((s) => s.color),
+      borderWidth: 2,
+      borderColor: '#fff',
+    }],
   };
 
   const options = {
@@ -330,14 +329,11 @@ export function GenderPieChart({ genderBreakdown = {} }) {
     maintainAspectRatio: false,
     cutout: '62%',
     plugins: {
-      legend: { display: false },
+      legend: { ...sharedLegend, position: 'bottom' },
       tooltip: {
         ...sharedTooltip,
         callbacks: {
-          label: (ctx) => {
-            const pct = Math.round((ctx.raw / total) * 100);
-            return `${ctx.label}: ${ctx.raw.toLocaleString()} (${pct}%)`;
-          },
+          label: (ctx) => ` ${ctx.label}: ${Number(ctx.raw).toLocaleString()} (${Math.round((ctx.raw / total) * 100)}%)`,
         },
       },
     },
@@ -351,17 +347,14 @@ export function GenderPieChart({ genderBreakdown = {} }) {
           <Doughnut data={chartData} options={options} />
         </div>
         <div className="dashboard-gender-legend">
-          {slices.map((s) => {
-            const pct = Math.round((s.count / total) * 100);
-            return (
-              <div key={s.label} className="dashboard-gender-legend__item">
-                <span className="dashboard-gender-legend__dot" style={{ background: s.color }} />
-                <span className="dashboard-gender-legend__label">{s.label}</span>
-                <strong className="dashboard-gender-legend__count">{s.count.toLocaleString()}</strong>
-                <span className="dashboard-gender-legend__pct">{pct}%</span>
-              </div>
-            );
-          })}
+          {slices.map((s) => (
+            <div key={s.label} className="dashboard-gender-legend__item">
+              <span className="dashboard-gender-legend__dot" style={{ background: s.color }} />
+              <span className="dashboard-gender-legend__label">{s.label}</span>
+              <strong className="dashboard-gender-legend__count">{s.count.toLocaleString()}</strong>
+              <span className="dashboard-gender-legend__pct">{Math.round((s.count / total) * 100)}%</span>
+            </div>
+          ))}
           <div className="dashboard-gender-legend__total">
             <span>Total residents</span>
             <strong>{total.toLocaleString()}</strong>

@@ -94,7 +94,7 @@ export function canManageHouseholds(session) {
 
 export function canCreateApplications(session) {
   const roleKey = resolveSessionRoleKey(session);
-  return roleKey === 'barangay_secretary';
+  return roleKey === 'barangay_secretary' || roleKey === 'barangay_staff';
 }
 
 export function canApproveApplications(session) {

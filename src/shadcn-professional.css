@@ -1853,22 +1853,19 @@ input[name='address'][readonly] {
   gap: 0.88rem;
 }
 
-.dashboard-program-gender-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 260px;
-  gap: 1rem;
-  align-items: stretch;
-}
-
 .dashboard-program-avail-section {
   animation: dashboard-fade-up 260ms var(--ui-ease);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .dashboard-program-avail-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 200px;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 220px);
   gap: 1.25rem;
   align-items: center;
+  flex: 1;
   margin-top: 0.75rem;
 }
 
@@ -1920,6 +1917,105 @@ input[name='address'][readonly] {
   .dashboard-program-avail-legend {
     flex-direction: row;
     flex-wrap: wrap;
+  }
+}
+
+.dashboard-program-gender-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: stretch;
+}
+
+@media (max-width: 900px) {
+  .dashboard-program-gender-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dashboard-gender-section {
+  animation: dashboard-fade-up 260ms var(--ui-ease);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.dashboard-gender-grid {
+  display: grid;
+  grid-template-columns: minmax(160px, 190px) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: center;
+  flex: 1;
+  margin-top: 0.75rem;
+}
+
+.dashboard-gender-chart {
+  height: 180px;
+  max-width: 190px;
+}
+
+.dashboard-gender-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.dashboard-gender-legend__item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+}
+
+.dashboard-gender-legend__dot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.dashboard-gender-legend__label {
+  flex: 1;
+  color: var(--ui-text-muted);
+}
+
+.dashboard-gender-legend__count {
+  font-weight: 700;
+  color: var(--ui-text);
+}
+
+.dashboard-gender-legend__pct {
+  font-size: 0.78rem;
+  color: var(--ui-text-muted);
+  min-width: 32px;
+  text-align: right;
+}
+
+.dashboard-gender-legend__total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--ui-border);
+  font-size: 0.82rem;
+  color: var(--ui-text-muted);
+}
+
+.dashboard-gender-legend__total strong {
+  color: var(--ui-text);
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .dashboard-gender-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-gender-chart {
+    height: 160px;
+    max-width: 160px;
+    margin: 0 auto;
   }
 }
 
@@ -4033,80 +4129,6 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
-}
-
-/* ── Gender breakdown pie chart ─────────────────────────────────────────── */
-
-.dashboard-gender-section {
-  animation: dashboard-fade-up 260ms var(--ui-ease);
-}
-
-.dashboard-gender-grid {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-  margin-top: 0.75rem;
-}
-
-.dashboard-gender-chart {
-  width: 160px;
-  height: 160px;
-  flex-shrink: 0;
-}
-
-.dashboard-gender-legend {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.dashboard-gender-legend__item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.82rem;
-}
-
-.dashboard-gender-legend__dot {
-  flex-shrink: 0;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-}
-
-.dashboard-gender-legend__label {
-  flex: 1;
-  color: var(--ui-text-muted);
-}
-
-.dashboard-gender-legend__count {
-  font-weight: 700;
-  color: var(--ui-text);
-}
-
-.dashboard-gender-legend__pct {
-  font-size: 0.75rem;
-  color: var(--ui-text-soft);
-  min-width: 2rem;
-  text-align: right;
-}
-
-.dashboard-gender-legend__total {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 0.25rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid var(--ui-border);
-  font-size: 0.8rem;
-  color: var(--ui-text-muted);
-}
-
-.dashboard-gender-legend__total strong {
-  color: var(--ui-text);
-  font-weight: 700;
 }
 
 /* ── Income Classification panel ────────────────────────────────────────── */

@@ -9,13 +9,13 @@ values
   ('CUBAY', 'Cubay', 'Central'),
   ('EMBRANGGA_AN', 'Embrangga-an', 'Central'),
   ('INTEGASAN', 'Integasan', 'Central'),
-  ('LOMBUYAN', 'Lombuyan', 'Central'),
+  ('LUMBOYAN', 'Lumboyan', 'Central'),
   ('MARIGNE', 'Marigne', 'Central'),
   ('MAYOS', 'Mayos', 'Central'),
   ('NALUSDAN', 'Nalusdan', 'Central'),
   ('PALMA', 'Palma', 'Central'),
   ('SOLIGAO', 'Soligao', 'Central'),
-  ('TIG_ALARAN', 'Tig-alaran', 'Central'),
+  ('TIG_ALARAN', 'Tig-Alaran', 'Central'),
   ('YAPO', 'Yapo', 'Central')
 on conflict (code) do nothing;
 

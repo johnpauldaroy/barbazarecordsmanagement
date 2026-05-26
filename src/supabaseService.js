@@ -604,7 +604,7 @@ function calculateRecommendationScore({ familyCount, monthlyIncome, headOccupati
   const hasOccupation = Boolean(String(headOccupation ?? '').trim());
   const familyScore = Math.min(members, 10) * 5;
   const workScore = !hasOccupation && income === 0 ? 30 : (!hasOccupation || income === 0 ? 15 : 0);
-  const incomeScore = income === 0 ? 20 : income < 10000 ? 15 : income < 20000 ? 8 : 0;
+  const incomeScore = income === 0 ? 20 : income <= 5000 ? 15 : income < 20000 ? 8 : 0;
 
   return familyScore + workScore + incomeScore;
 }
@@ -625,7 +625,7 @@ function buildRecommendationReasons({ familyCount, monthlyIncome, headOccupation
 
   if (income === 0) {
     reasons.push('No income household');
-  } else if (income < 10000) {
+  } else if (income <= 5000) {
     reasons.push('Low income household');
   } else if (income < 20000) {
     reasons.push('Moderate income household');
@@ -698,7 +698,7 @@ function resolveSuggestedProgram(candidate, programs, quotaMap) {
   const hasOccupation = Boolean(candidate.headOccupation);
   const hasIncome = income > 0;
   const isNoIncomeNoWork = !hasOccupation && !hasIncome;
-  const isLowIncome = income < 10000;
+  const isLowIncome = income <= 5000;
   const qualifyingChildren = Number(candidate.qualifyingChildrenCount ?? 0);
 
   const eligible = [];
@@ -1792,7 +1792,7 @@ export const supabaseService = {
           daysDelayedLabel: formatDaysDelayed(daysDelayed),
         };
       }),
-      'Failed to load the application queue.'
+      'Failed to load applications.'
     );
   },
 
@@ -3731,7 +3731,7 @@ export const supabaseService = {
           const barangay = row.barangay?.name || 'Unknown';
           let tierKey;
           if (income === 0) tierKey = 'no_income';
-          else if (income < 10000) tierKey = 'low_income';
+          else if (income <= 5000) tierKey = 'low_income';
           else if (income < 20000) tierKey = 'moderate';
           else tierKey = 'above_moderate';
 
@@ -4522,7 +4522,7 @@ export const supabaseService = {
           const income = Number(hh.monthly_income ?? 0);
           let tierKey;
           if (income === 0) tierKey = 'no_income';
-          else if (income < 10000) tierKey = 'low_income';
+          else if (income <= 5000) tierKey = 'low_income';
           else if (income < 20000) tierKey = 'moderate';
           else tierKey = 'above_moderate';
 
@@ -4544,7 +4544,7 @@ export const supabaseService = {
         const income = Number(hh.monthlyIncome ?? hh.headMonthlyIncome ?? 0);
         let tierKey;
         if (income === 0) tierKey = 'no_income';
-        else if (income < 10000) tierKey = 'low_income';
+        else if (income <= 5000) tierKey = 'low_income';
         else if (income < 20000) tierKey = 'moderate';
         else tierKey = 'above_moderate';
         return {
@@ -4795,7 +4795,7 @@ export const supabaseService = {
       () => ({
         rows: [
           { id: '1', reference: 'AICS-2026-00133', household: 'HH-POB-0012', program: 'AICS', barangay: 'Poblacion', amount: 5000, amountFormatted: '₱5,000.00', status: 'released', releasedAt: new Date().toLocaleDateString('en-PH') },
-          { id: '2', reference: 'TUPAD-2026-00044', household: 'HH-MAY-0008', program: 'TUPAD', barangay: 'Mayha', amount: 8500, amountFormatted: '₱8,500.00', status: 'released', releasedAt: new Date().toLocaleDateString('en-PH') },
+          { id: '2', reference: 'TUPAD-2026-00044', household: 'HH-PAL-0008', program: 'TUPAD', barangay: 'Palma', amount: 8500, amountFormatted: '₱8,500.00', status: 'released', releasedAt: new Date().toLocaleDateString('en-PH') },
           { id: '3', reference: 'AICS-2026-00128', household: 'HH-POB-0023', program: 'AICS', barangay: 'Poblacion', amount: 3000, amountFormatted: '₱3,000.00', status: 'approved', releasedAt: '—' },
         ],
         totalReleased: 13500,

@@ -4,13 +4,13 @@ export const portalSections = [
     label: 'Dashboard',
     path: '/dashboard',
     eyebrow: 'Operations',
-    summary: 'Daily queue status, priority items, and workload balance for MSWD processing.',
+    summary: 'Daily application status, priority items, and workload balance for MSWD processing.',
   },
   {
     id: 'applications',
     label: 'Applications',
     path: '/applications',
-    eyebrow: 'Queue',
+    eyebrow: 'Applications',
     summary: 'Assigned applications, requirement checks, and the current case review workbench.',
   },
   {
@@ -136,7 +136,7 @@ export const applicationQueue = [
   {
     reference: 'AICS-2026-00133',
     applicant: 'Danilo P. Serrano',
-    barangay: 'Mayha',
+    barangay: 'Palma',
     program: 'AICS',
     status: 'Duplicate flagged',
     tone: 'neutral',
@@ -154,7 +154,7 @@ export const applicationQueue = [
   {
     reference: 'TUPAD-2026-00044',
     applicant: 'Joel A. Salangsang',
-    barangay: 'Mayha',
+    barangay: 'Palma',
     program: 'TUPAD',
     status: 'Need applicant revision',
     tone: 'default',
@@ -163,7 +163,7 @@ export const applicationQueue = [
   {
     reference: 'AICS-2026-00115',
     applicant: 'Rosa B. Ignacio',
-    barangay: 'Badiangan',
+    barangay: 'Cubay',
     program: 'AICS',
     status: 'Ready for release',
     tone: 'good',
@@ -172,7 +172,7 @@ export const applicationQueue = [
   {
     reference: 'TUPAD-2026-00047',
     applicant: 'Josephine L. Tajan',
-    barangay: 'Alojipan',
+    barangay: 'Gua',
     program: 'TUPAD',
     status: 'Under verification',
     tone: 'warning',
@@ -286,7 +286,7 @@ export const applicationCaseDetails = {
   'AICS-2026-00133': {
     reference: 'AICS-2026-00133',
     applicant: 'Danilo P. Serrano',
-    household: 'HH-MAY-0118',
+    household: 'HH-PAL-0118',
     program: 'AICS',
     submittedAt: 'Mar 20, 2026 7:42 AM',
     supportType: 'Food and cash relief',
@@ -388,7 +388,7 @@ export const applicationCaseDetails = {
   'AICS-2026-00115': {
     reference: 'AICS-2026-00115',
     applicant: 'Rosa B. Ignacio',
-    household: 'HH-BAD-0201',
+    household: 'HH-CUB-0201',
     program: 'AICS',
     submittedAt: 'Mar 19, 2026 9:25 AM',
     supportType: 'Medical assistance',
@@ -407,7 +407,7 @@ export const applicationCaseDetails = {
       },
       {
         timestamp: 'Mar 19, 2026 11:02 AM',
-        action: 'Queued for release',
+        action: 'Ready for release',
         actor: 'MSWD Supervisor',
         note: 'Application cleared for financial assistance release scheduling.',
       },
@@ -439,7 +439,7 @@ export const applicationCaseDetails = {
   'TUPAD-2026-00047': {
     reference: 'TUPAD-2026-00047',
     applicant: 'Josephine L. Tajan',
-    household: 'HH-ALO-0077',
+    household: 'HH-GUA-0077',
     program: 'TUPAD',
     submittedAt: 'Mar 18, 2026 1:11 PM',
     supportType: 'Temporary employment assistance',
@@ -557,13 +557,13 @@ export const householdRows = [
     lumonMemberNames: [],
   },
   {
-    code: 'HH-MAY-0118',
+    code: 'HH-PAL-0118',
     head: 'Danilo P. Serrano',
-    barangay: 'Mayha',
+    barangay: 'Palma',
     members: '4',
     openCases: '1',
     purokSitio: 'Sitio Proper',
-    addressLine1: 'Mayha, Barbaza, Antique',
+    addressLine1: 'Palma, Barbaza, Antique',
     headLastName: 'Serrano',
     headFirstName: 'Danilo',
     headMiddleName: 'P.',
@@ -578,7 +578,7 @@ export const householdRows = [
     headMonthlyIncome: '8000',
     familyMembers: [
       {
-        _id: 'hh-may-m1',
+        _id: 'hh-pal-m1',
         lastName: 'Serrano',
         firstName: 'Luz',
         middleName: 'R.',
@@ -594,7 +594,7 @@ export const householdRows = [
         monthlyIncome: '0',
       },
       {
-        _id: 'hh-may-m2',
+        _id: 'hh-pal-m2',
         lastName: 'Serrano',
         firstName: 'Carlo',
         middleName: '',
@@ -617,13 +617,13 @@ export const householdRows = [
     lumonMemberNames: [],
   },
   {
-    code: 'HH-BAD-0201',
+    code: 'HH-CUB-0201',
     head: 'Rosa B. Ignacio',
-    barangay: 'Badiangan',
+    barangay: 'Cubay',
     members: '7',
     openCases: '1',
     purokSitio: 'Purok 5',
-    addressLine1: 'Badiangan, Barbaza, Antique',
+    addressLine1: 'Cubay, Barbaza, Antique',
     headLastName: 'Ignacio',
     headFirstName: 'Rosa',
     headMiddleName: 'B.',
@@ -638,7 +638,7 @@ export const householdRows = [
     headMonthlyIncome: '7500',
     familyMembers: [
       {
-        _id: 'hh-bad-m1',
+        _id: 'hh-cub-m1',
         lastName: 'Ignacio',
         firstName: 'Pedro',
         middleName: 'L.',
@@ -654,7 +654,7 @@ export const householdRows = [
         monthlyIncome: '5000',
       },
       {
-        _id: 'hh-bad-m2',
+        _id: 'hh-cub-m2',
         lastName: 'Ignacio',
         firstName: 'Mario',
         middleName: '',
@@ -670,7 +670,7 @@ export const householdRows = [
         monthlyIncome: '4000',
       },
       {
-        _id: 'hh-bad-m3',
+        _id: 'hh-cub-m3',
         lastName: 'Ignacio',
         firstName: 'Celia',
         middleName: '',
@@ -689,7 +689,7 @@ export const householdRows = [
     isLumon: true,
     lumonFamilyCount: '3',
     lumonDescription: 'Person-level Lumon tags: Rosa B. Ignacio, Mario Ignacio, and Celia Ignacio.',
-    lumonMemberKeys: ['__head__', 'hh-bad-m2', 'hh-bad-m3'],
+    lumonMemberKeys: ['__head__', 'hh-cub-m2', 'hh-cub-m3'],
     lumonMemberNames: [
       'Rosa B. Ignacio (Head)',
       'Mario Ignacio (Son)',
@@ -697,13 +697,13 @@ export const householdRows = [
     ],
   },
   {
-    code: 'HH-ALO-0077',
+    code: 'HH-GUA-0077',
     head: 'Josephine L. Tajan',
-    barangay: 'Alojipan',
+    barangay: 'Gua',
     members: '9',
     openCases: '1',
     purokSitio: 'Sitio Baybay',
-    addressLine1: 'Alojipan, Barbaza, Antique',
+    addressLine1: 'Gua, Barbaza, Antique',
     headLastName: 'Tajan',
     headFirstName: 'Josephine',
     headMiddleName: 'L.',
@@ -718,7 +718,7 @@ export const householdRows = [
     headMonthlyIncome: '4500',
     familyMembers: [
       {
-        _id: 'hh-alo-m1',
+        _id: 'hh-gua-m1',
         lastName: 'Tajan',
         firstName: 'Renato',
         middleName: '',
@@ -734,7 +734,7 @@ export const householdRows = [
         monthlyIncome: '3500',
       },
       {
-        _id: 'hh-alo-m2',
+        _id: 'hh-gua-m2',
         lastName: 'Tajan',
         firstName: 'Marivic',
         middleName: '',
@@ -750,7 +750,7 @@ export const householdRows = [
         monthlyIncome: '0',
       },
       {
-        _id: 'hh-alo-m3',
+        _id: 'hh-gua-m3',
         lastName: 'Pascua',
         firstName: 'Nena',
         middleName: 'G.',
@@ -769,7 +769,7 @@ export const householdRows = [
     isLumon: true,
     lumonFamilyCount: '4',
     lumonDescription: 'Person-level Lumon tags: Josephine Tajan, Renato Tajan, Marivic Tajan, and Nena Pascua.',
-    lumonMemberKeys: ['__head__', 'hh-alo-m1', 'hh-alo-m2', 'hh-alo-m3'],
+    lumonMemberKeys: ['__head__', 'hh-gua-m1', 'hh-gua-m2', 'hh-gua-m3'],
     lumonMemberNames: [
       'Josephine L. Tajan (Head)',
       'Renato Tajan (Son)',
@@ -807,9 +807,9 @@ export const householdDetailsByCode = {
       },
     ],
   },
-  'HH-MAY-0118': {
+  'HH-PAL-0118': {
     profile: [
-      { label: 'Address', value: 'Sitio Proper, Mayha, Barbaza, Antique' },
+      { label: 'Address', value: 'Sitio Proper, Palma, Barbaza, Antique' },
       { label: 'Income source', value: 'Construction work and tricycle driving' },
       { label: 'Last assistance', value: 'Food support on Nov 28, 2025' },
       { label: 'Open cases', value: '1 active application' },
@@ -827,9 +827,9 @@ export const householdDetailsByCode = {
       },
     ],
   },
-  'HH-BAD-0201': {
+  'HH-CUB-0201': {
     profile: [
-      { label: 'Address', value: 'Purok 5, Badiangan, Barbaza, Antique' },
+      { label: 'Address', value: 'Purok 5, Cubay, Barbaza, Antique' },
       { label: 'Income source', value: 'Fishing and sari-sari store sales' },
       { label: 'Last assistance', value: 'Medical support on Feb 02, 2026' },
       { label: 'Open cases', value: '1 active application' },
@@ -847,9 +847,9 @@ export const householdDetailsByCode = {
       },
     ],
   },
-  'HH-ALO-0077': {
+  'HH-GUA-0077': {
     profile: [
-      { label: 'Address', value: 'Sitio Baybay, Alojipan, Barbaza, Antique' },
+      { label: 'Address', value: 'Sitio Baybay, Gua, Barbaza, Antique' },
       { label: 'Income source', value: 'Laundry service and seasonal farm labor' },
       { label: 'Last assistance', value: 'No releases in the past 12 months' },
       { label: 'Open cases', value: '1 active application' },
@@ -892,15 +892,15 @@ export const reportStats = [
 
 export const workloadByBarangay = [
   { barangay: 'Poblacion', pending: 12, approved: 31 },
-  { barangay: 'Mayha', pending: 9, approved: 24 },
-  { barangay: 'Badiangan', pending: 7, approved: 19 },
-  { barangay: 'Alojipan', pending: 6, approved: 16 },
-  { barangay: 'Torocadan', pending: 5, approved: 14 },
+  { barangay: 'Palma', pending: 9, approved: 24 },
+  { barangay: 'Cubay', pending: 7, approved: 19 },
+  { barangay: 'Gua', pending: 6, approved: 16 },
+  { barangay: 'Soligao', pending: 5, approved: 14 },
 ];
 
 export const exportCards = [
   {
-    title: 'Daily queue summary',
+    title: 'Daily application summary',
     metric: '48 active cases',
     note: 'Snapshot of intake, approvals, and returned applications.',
   },
@@ -933,9 +933,9 @@ export const demoUsers = [
     displayName: 'Ana B. Ramos',
     email: 'ana.ramos@barbaza.gov.ph',
     role: 'barangay_secretary',
-    barangayId: 'demo-bgy-mayha',
-    barangayName: 'Mayha',
-    barangayCode: 'MAYHA',
+    barangayId: 'demo-bgy-palma',
+    barangayName: 'Palma',
+    barangayCode: 'PALMA',
     isActive: true,
     lastSignIn: '2026-03-20T08:30:00Z'
   },
@@ -955,9 +955,9 @@ export const demoUsers = [
     displayName: 'Maria L. Santos',
     email: 'maria.santos@barbaza.gov.ph',
     role: 'barangay_secretary',
-    barangayId: 'demo-bgy-mayha',
-    barangayName: 'Mayha',
-    barangayCode: 'MAYHA',
+    barangayId: 'demo-bgy-palma',
+    barangayName: 'Palma',
+    barangayCode: 'PALMA',
     isActive: true,
     lastSignIn: '2026-03-19T16:45:00Z'
   }
@@ -1015,46 +1015,45 @@ export const programBreakdown = {
   values: [61, 22, 11, 6],
 };
 export const barbazaBarangays = [
-  { code: 'ABACA', name: 'Abaca' },
   { code: 'BAGHARI', name: 'Baghari' },
   { code: 'BAHUYAN', name: 'Bahuyan' },
   { code: 'BERI', name: 'Beri' },
   { code: 'BIGA-A', name: 'Biga-a' },
   { code: 'BINANGBANG', name: 'Binangbang' },
-  { code: 'BINONGAAN', name: 'Binongaan' },
+  { code: 'BINANGBANG_CENTRO', name: 'Binangbang Centro' },
+  { code: 'BINANU_AN', name: 'Binanu-an' },
   { code: 'CADIAO', name: 'Cadiao' },
+  { code: 'CALAPADAN', name: 'Calapadan' },
   { code: 'CAPOYUAN', name: 'Capoyuan' },
+  { code: 'CUBAY', name: 'Cubay' },
   { code: 'ESPARAR', name: 'Esparar' },
-  { code: 'GUA', 'name': 'Gua' },
-  { code: 'IDAO', 'name': 'Idao' },
-  { code: 'IGPALGE', 'name': 'Igpalge' },
-  { code: 'IGTUNARUM', 'name': 'Igtunarum' },
-  { code: 'IPIL', 'name': 'Ipil' },
-  { code: 'JINALINAN', 'name': 'Jinalinan' },
-  { code: 'LANAS', 'name': 'Lanas' },
-  { code: 'LANGCAON', 'name': 'Langcaon' },
-  { code: 'LISUB', 'name': 'Lisub' },
-  { code: 'MABLAD', 'name': 'Mablad' },
-  { code: 'MAGTULIS', 'name': 'Magtulis' },
-  { code: 'MARADIONA', 'name': 'Maradiona' },
-  { code: 'MARARI', 'name': 'Marari' },
-  { code: 'MAYABAY', 'name': 'Mayabay' },
-  { code: 'MAYHA', 'name': 'Mayha' },
-  { code: 'NALOOK', 'name': 'Nalook' },
-  { code: 'NARIRONG', 'name': 'Narirong' },
-  { code: 'PALMIRA', 'name': 'Palmira' },
-  { code: 'PANGPANG', 'name': 'Pangpang' },
-  { code: 'PASONG', 'name': 'Pasong' },
-  { code: 'POBLACION', 'name': 'Poblacion' },
-  { code: 'SAN_ANTONIO', 'name': 'San Antonio' },
-  { code: 'SAN_JOSE', 'name': 'San Jose' },
-  { code: 'SAN_RAMON', 'name': 'San Ramon' },
-  { code: 'SAN_ROQUE', 'name': 'San Roque' },
-  { code: 'SOLIDO', 'name': 'Solido' },
-  { code: 'TABONGTABONG', 'name': 'Tabongtabong' },
-  { code: 'TALO-ATO', 'name': 'Talo-ato' },
-  { code: 'TIGBABOY', 'name': 'Tigbaboy' },
-  { code: 'TUNO', 'name': 'Tuno' },
+  { code: 'GUA', name: 'Gua' },
+  { code: 'IDAO', name: 'Idao' },
+  { code: 'IGPALGE', name: 'Igpalge' },
+  { code: 'IGTUNARUM', name: 'Igtunarum' },
+  { code: 'EMBRANGGA_AN', name: 'Embrangga-an' },
+  { code: 'INTEGASAN', name: 'Integasan' },
+  { code: 'IPIL', name: 'Ipil' },
+  { code: 'JINALINAN', name: 'Jinalinan' },
+  { code: 'LANAS', name: 'Lanas' },
+  { code: 'LANGCAON', name: 'Langcaon' },
+  { code: 'LISUB', name: 'Lisub' },
+  { code: 'LUMBOYAN', name: 'Lumboyan' },
+  { code: 'MABLAD', name: 'Mablad' },
+  { code: 'MAGTULIS', name: 'Magtulis' },
+  { code: 'MARIGNE', name: 'Marigne' },
+  { code: 'MAYABAY', name: 'Mayabay' },
+  { code: 'MAYOS', name: 'Mayos' },
+  { code: 'NALUSDAN', name: 'Nalusdan' },
+  { code: 'NARIRONG', name: 'Narirong' },
+  { code: 'PALMA', name: 'Palma' },
+  { code: 'POBLACION', name: 'Poblacion' },
+  { code: 'SAN_ANTONIO', name: 'San Antonio' },
+  { code: 'SAN_RAMON', name: 'San Ramon' },
+  { code: 'SOLIGAO', name: 'Soligao' },
+  { code: 'TABONGTABONG', name: 'Tabongtabong' },
+  { code: 'TIG_ALARAN', name: 'Tig-Alaran' },
+  { code: 'YAPO', name: 'Yapo' },
 ];
 
 // ── Household analytics demo data ────────────────────────────────────────────
@@ -1090,10 +1089,10 @@ export const applicationsByProgram = [
 
 export const lowIncomeByBarangay = [
   { barangay: 'Poblacion',  noIncome: 9,  lowIncome: 18, total: 27 },
-  { barangay: 'Mayha',      noIncome: 7,  lowIncome: 15, total: 22 },
-  { barangay: 'Badiangan',  noIncome: 6,  lowIncome: 13, total: 19 },
-  { barangay: 'Alojipan',   noIncome: 5,  lowIncome: 11, total: 16 },
-  { barangay: 'Torocadan',  noIncome: 4,  lowIncome: 9,  total: 13 },
+  { barangay: 'Palma',      noIncome: 7,  lowIncome: 15, total: 22 },
+  { barangay: 'Cubay',      noIncome: 6,  lowIncome: 13, total: 19 },
+  { barangay: 'Gua',        noIncome: 5,  lowIncome: 11, total: 16 },
+  { barangay: 'Soligao',    noIncome: 4,  lowIncome: 9,  total: 13 },
   { barangay: 'Igpalge',    noIncome: 4,  lowIncome: 8,  total: 12 },
   { barangay: 'Cadiao',     noIncome: 3,  lowIncome: 8,  total: 11 },
   { barangay: 'Lisub',      noIncome: 3,  lowIncome: 7,  total: 10 },

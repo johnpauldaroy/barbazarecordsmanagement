@@ -26,6 +26,40 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
+const BARBAZA_CENTER = [11.195867, 122.038931];
+const BARBAZA_COORDINATE_BOUNDS = {
+  south: 11.14,
+  west: 121.98,
+  north: 11.27,
+  east: 122.12,
+};
+const BARBAZA_LEAFLET_BOUNDS = [
+  [BARBAZA_COORDINATE_BOUNDS.south, BARBAZA_COORDINATE_BOUNDS.west],
+  [BARBAZA_COORDINATE_BOUNDS.north, BARBAZA_COORDINATE_BOUNDS.east],
+];
+const BARBAZA_NOMINATIM_VIEWBOX = [
+  BARBAZA_COORDINATE_BOUNDS.west,
+  BARBAZA_COORDINATE_BOUNDS.north,
+  BARBAZA_COORDINATE_BOUNDS.east,
+  BARBAZA_COORDINATE_BOUNDS.south,
+].join(',');
+
+function isCoordinateInBarbaza(latitude, longitude) {
+  return Number.isFinite(latitude)
+    && Number.isFinite(longitude)
+    && latitude >= BARBAZA_COORDINATE_BOUNDS.south
+    && latitude <= BARBAZA_COORDINATE_BOUNDS.north
+    && longitude >= BARBAZA_COORDINATE_BOUNDS.west
+    && longitude <= BARBAZA_COORDINATE_BOUNDS.east;
+}
+
+function clampCoordinateToBarbaza(latitude, longitude) {
+  return [
+    Math.min(Math.max(latitude, BARBAZA_COORDINATE_BOUNDS.south), BARBAZA_COORDINATE_BOUNDS.north),
+    Math.min(Math.max(longitude, BARBAZA_COORDINATE_BOUNDS.west), BARBAZA_COORDINATE_BOUNDS.east),
+  ];
+}
+
 function IncomeBadge({ monthlyIncome }) {
   const tier = classifyIncome(monthlyIncome);
   return (
@@ -300,8 +334,9 @@ function LocationMarker({ center, onChange }) {
         const marker = markerRef.current;
         if (marker != null) {
           const pos = marker.getLatLng();
-          onChange({ target: { name: 'latitude', value: pos.lat.toFixed(6) } });
-          onChange({ target: { name: 'longitude', value: pos.lng.toFixed(6) } });
+          const [latitude, longitude] = clampCoordinateToBarbaza(pos.lat, pos.lng);
+          onChange({ target: { name: 'latitude', value: latitude.toFixed(6) } });
+          onChange({ target: { name: 'longitude', value: longitude.toFixed(6) } });
         }
       },
     }),
@@ -322,8 +357,13 @@ function MapViewUpdater({ center, isValid }) {
   const map = useMap();
 
   useEffect(() => {
+    map.setMaxBounds(BARBAZA_LEAFLET_BOUNDS);
+    map.setMinZoom(12);
+
     if (isValid) {
       map.setView(center, 16);
+    } else {
+      map.fitBounds(BARBAZA_LEAFLET_BOUNDS, { padding: [24, 24] });
     }
   }, [center, isValid, map]);
 
@@ -333,15 +373,23 @@ function MapViewUpdater({ center, isValid }) {
 function MapPicker({ latitude, longitude, onChange }) {
   const lat = parseFloat(latitude);
   const lng = parseFloat(longitude);
-  const isValid = !isNaN(lat) && !isNaN(lng);
+  const isValid = isCoordinateInBarbaza(lat, lng);
   const center = useMemo(
-    () => (isValid ? [lat, lng] : [11.2198, 122.0381]),
+    () => (isValid ? [lat, lng] : BARBAZA_CENTER),
     [isValid, lat, lng]
   );
 
   return (
     <div className="household-map-container" style={{ height: '280px', width: '100%', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e5e7eb', marginTop: '12px' }}>
-      <MapContainer center={center} zoom={15} scrollWheelZoom={false} style={{ height: '100%', width: '100%' }}>
+      <MapContainer
+        center={center}
+        zoom={15}
+        minZoom={12}
+        maxBounds={BARBAZA_LEAFLET_BOUNDS}
+        maxBoundsViscosity={1}
+        scrollWheelZoom={false}
+        style={{ height: '100%', width: '100%' }}
+      >
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -544,8 +592,8 @@ function HouseholdFormModal({
                   name="latitude"
                   type="number"
                   step="0.000001"
-                  min="-90"
-                  max="90"
+                  min={BARBAZA_COORDINATE_BOUNDS.south}
+                  max={BARBAZA_COORDINATE_BOUNDS.north}
                   value={formState.latitude}
                   onChange={onChange}
                   placeholder="e.g. 11.195867"
@@ -557,8 +605,8 @@ function HouseholdFormModal({
                   name="longitude"
                   type="number"
                   step="0.000001"
-                  min="-180"
-                  max="180"
+                  min={BARBAZA_COORDINATE_BOUNDS.west}
+                  max={BARBAZA_COORDINATE_BOUNDS.east}
                   value={formState.longitude}
                   onChange={onChange}
                   placeholder="e.g. 122.038931"
@@ -577,15 +625,15 @@ function HouseholdFormModal({
                       onClick={async () => {
                         // Limit geocoding search strictly to Barbaza, Antique area
                         const query = `${formState.addressLine1}, ${formState.barangay}, Barbaza, Antique`;
-                        const viewbox = '121.95,11.35,122.15,11.10'; // West, North, East, South
                         try {
                           const res = await fetch(
-                            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&viewbox=${viewbox}&bounded=1`
+                            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&viewbox=${BARBAZA_NOMINATIM_VIEWBOX}&bounded=1`
                           );
                           const data = await res.json();
-                          if (data && data.length > 0) {
-                            onChange({ target: { name: 'latitude', value: data[0].lat } });
-                            onChange({ target: { name: 'longitude', value: data[0].lon } });
+                          const result = data?.find((item) => isCoordinateInBarbaza(Number(item.lat), Number(item.lon)));
+                          if (result) {
+                            onChange({ target: { name: 'latitude', value: Number(result.lat).toFixed(6) } });
+                            onChange({ target: { name: 'longitude', value: Number(result.lon).toFixed(6) } });
                           } else {
                             alert("Address not found within Barbaza, Antique. Please pinpoint manually on the map.");
                           }
@@ -1325,10 +1373,15 @@ function HouseholdsPage({ session }) {
       (position) => {
         const latitude = Number(position.coords.latitude);
         const longitude = Number(position.coords.longitude);
+        if (!isCoordinateInBarbaza(latitude, longitude)) {
+          setGeoError('Current location is outside Barbaza, Antique. Please select a location within Barbaza on the map.');
+          setIsLocatingGeo(false);
+          return;
+        }
         setHouseholdForm((current) => ({
           ...current,
-          latitude: Number.isFinite(latitude) ? latitude.toFixed(6) : current.latitude,
-          longitude: Number.isFinite(longitude) ? longitude.toFixed(6) : current.longitude,
+          latitude: latitude.toFixed(6),
+          longitude: longitude.toFixed(6),
         }));
         setIsLocatingGeo(false);
       },
@@ -1375,6 +1428,12 @@ function HouseholdsPage({ session }) {
       : [];
     if (f.isLumon && lumonMemberKeys.length === 0) {
       setFormError('Select at least one person to tag as Lumon.');
+      return;
+    }
+    const latitude = Number(f.latitude);
+    const longitude = Number(f.longitude);
+    if ((f.latitude || f.longitude) && !isCoordinateInBarbaza(latitude, longitude)) {
+      setFormError('Household coordinates must be within Barbaza, Antique.');
       return;
     }
     const normalizedLumonFamilyCount = f.isLumon

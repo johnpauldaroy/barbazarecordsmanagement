@@ -49,35 +49,6 @@ function abbreviateProgram(name) {
   return PROGRAM_ABBREV[name.toLowerCase()] ?? name;
 }
 
-function RecommendationActions({ item, canCreateApplications, onSelect }) {
-  const suggestedProgramName = item.suggestedProgram?.name ?? '';
-  const isAlreadyEnrolledInSuggested = suggestedProgramName
-    && (item.activePrograms ?? []).some(
-      (p) => p.toLowerCase() === suggestedProgramName.toLowerCase()
-    );
-  const isDisabled = !canCreateApplications || item.isQuotaFull || isAlreadyEnrolledInSuggested;
-  const label = item.isQuotaFull
-    ? 'Quota full'
-    : isAlreadyEnrolledInSuggested
-    ? 'Already enrolled'
-    : 'Select';
-
-  return (
-    <div className="row-actions" onClick={(event) => event.stopPropagation()}>
-      <Button
-        type="button"
-        size="sm"
-        variant={isAlreadyEnrolledInSuggested ? 'outline' : 'default'}
-        title={isDisabled ? label : `Select ${item.householdCode}`}
-        disabled={isDisabled}
-        onClick={() => onSelect(item)}
-      >
-        {label}
-      </Button>
-    </div>
-  );
-}
-
 function SuggestionsDropdown({ suggestions, onSelect }) {
   if (!suggestions || suggestions.length === 0) return null;
 
@@ -1113,6 +1084,13 @@ function ApplicationsPage({ session }) {
     }
   };
 
+  const handleSelectCandidate = (candidate) => {
+    const prefilled = supabaseService.prefillApplicationFromRecommendation(candidate);
+    setNewApplication((current) => ({ ...current, ...prefilled }));
+    setSaveError('');
+    setShowAddModal(true);
+  };
+
   const handleSelectSuggestion = (suggestion) => {
     setNewApplication((current) => ({
       ...current,
@@ -1124,37 +1102,6 @@ function ApplicationsPage({ session }) {
     }));
     setSuggestions([]);
     setActiveSuggestionField(null);
-  };
-
-  const handleSelectRecommendation = (candidate) => {
-    if (!canCreateApplications || candidate.isQuotaFull) {
-      return;
-    }
-
-    // Use the system-suggested program if available, otherwise fall back to the filter
-    const suggestedProgram = candidate.suggestedProgram ?? null;
-    const programCode = suggestedProgram?.code || recommendationProgramCode || candidate.programCode;
-
-    const prefill = supabaseService.prefillApplicationFromRecommendation({
-      ...candidate,
-      programCode,
-    });
-
-    setSaveError('');
-    setSuggestions([]);
-    setActiveSuggestionField(null);
-    setNewApplication((current) => ({
-      ...current,
-      ...prefill,
-      barangay: isBarangayScopedRole
-        ? (scopedBarangayName || prefill.barangay || current.barangay)
-        : (prefill.barangay || current.barangay),
-      programCode: prefill.programCode || current.programCode,
-      suggestedProgramCode: suggestedProgram?.code ?? '',
-      suggestedProgramName: suggestedProgram?.name ?? '',
-      uploadedRequirements: {},
-    }));
-    setShowAddModal(true);
   };
 
   const uploadRequirement = (requirement, file) => {
@@ -1293,12 +1240,6 @@ function ApplicationsPage({ session }) {
       render: (item) => <span>{item.workStatus}</span>,
     },
     {
-      key: 'recommendationScore',
-      label: 'Score',
-      render: (item) => <span className="recommendation-score">{item.recommendationScore}</span>,
-      getSortValue: (item) => item.recommendationScore,
-    },
-    {
       key: 'recommendationReasons',
       label: 'Reasons',
       render: (item) => (
@@ -1353,15 +1294,41 @@ function ApplicationsPage({ session }) {
       getSearchText: (item) => item.suggestedProgram?.code ?? '',
     },
     {
-      key: '_actions',
-      label: 'Actions',
-      render: (item) => (
-        <RecommendationActions
-          item={item}
-          canCreateApplications={canCreateApplications}
-          onSelect={handleSelectRecommendation}
-        />
-      ),
+      key: '_select',
+      label: '',
+      render: (item) => {
+        if (!canCreateApplications) return null;
+        const codeLower = recommendationProgramCode.toLowerCase();
+        const alreadyApplied = (item.activePrograms ?? []).some((name) => {
+          const n = name.toLowerCase();
+          // match by exact code or by known abbreviation mapping
+          if (n === codeLower) return true;
+          if (codeLower === 'aics' && n.includes('crisis situation')) return true;
+          if (codeLower === 'tupad' && n.includes('tupad')) return true;
+          if (codeLower.startsWith('4ps') && (n.includes('4ps') || n.includes('pantawid'))) return true;
+          return false;
+        });
+        if (alreadyApplied) return null;
+        return (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); handleSelectCandidate(item); }}
+            style={{
+              fontSize: '12px',
+              fontWeight: 600,
+              color: '#fff',
+              background: '#2563eb',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '5px 14px',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Select
+          </button>
+        );
+      },
     },
   ];
 
@@ -1454,7 +1421,7 @@ function ApplicationsPage({ session }) {
     <>
       <div className="workspace-page space-y-4">
         <section className="panel space-y-4">
-          <SectionHeading eyebrow="Workload" title="Queue summary" />
+          <SectionHeading eyebrow="Workload" title="Application summary" />
           {pageError ? <div className="auth-alert">{pageError}</div> : null}
           <div className="stats-grid">
             {stats.map((card) => (
@@ -1473,7 +1440,7 @@ function ApplicationsPage({ session }) {
           {queueIntent.label ? (
             <div className="application-queue-note">
               <strong>Dashboard filter applied</strong>
-              <p>Showing queue items for: {queueIntent.label}.</p>
+              <p>Showing applications for: {queueIntent.label}.</p>
             </div>
           ) : null}
 
@@ -1532,7 +1499,7 @@ function ApplicationsPage({ session }) {
                   emptyMessage={loadingRecommendations ? 'Loading recommendations...' : 'No recommendation candidates found.'}
                   initialSortKey="rank"
                   initialSortDirection="asc"
-                  gridTemplate="0.45fr 1.25fr 0.55fr 1fr 1fr 0.55fr 1.4fr 0.75fr 0.7fr 120px"
+                  gridTemplate="0.45fr 1.25fr 0.55fr 1fr 1fr 1.4fr 0.75fr 0.7fr 0.6fr"
                 />
               </div>
             </TabsContent>

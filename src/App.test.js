@@ -70,7 +70,7 @@ test('barangay secretary can manage households and cannot approve applications',
       name: 'Maria L. Santos',
       role: 'Barangay Secretary',
       roleKey: 'barangay_secretary',
-      barangayName: 'Mayha',
+      barangayName: 'Palma',
     })
   );
   window.location.hash = '#/households';

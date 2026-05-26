@@ -308,7 +308,7 @@ function DashboardPage({ session }) {
 
       {/* â"€â"€ Application Queue KPIs â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
       <section className="panel dashboard-kpi-section">
-        <SectionHeading title="Queue snapshot" />
+        <SectionHeading title="Application snapshot" />
         <div className="dashboard-kpi-grid">
           {queueStats.map((card) => (
             <a
@@ -323,18 +323,21 @@ function DashboardPage({ session }) {
         </div>
       </section>
 
-      {/* â"€â"€ Program Avail Chart + Gender breakdown â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
-      <div className="dashboard-program-gender-row">
+      {isBarangayScopedRole ? (
+        <div className="dashboard-program-gender-row">
+          <ProgramAvailChart programAvail={charts?.programAvail} />
+          <GenderPieChart genderBreakdown={householdAnalytics?.genderBreakdown} />
+        </div>
+      ) : (
         <ProgramAvailChart programAvail={charts?.programAvail} />
-        <GenderPieChart genderBreakdown={householdAnalytics?.genderBreakdown} />
-      </div>
+      )}
 
       {/* â"€â"€ Trend Charts â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
       {charts ? <DashboardCharts data={charts} drilldowns={CHART_DRILLDOWNS} /> : null}
 
       {/* â"€â"€ Priority Cases â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€ */}
       <section className="panel dashboard-priority-section">
-        <SectionHeading eyebrow="Priority queue" title="Cases needing action" />
+        <SectionHeading eyebrow="Priority cases" title="Cases needing action" />
         <InteractiveTable
           columns={columns}
           rows={cases}

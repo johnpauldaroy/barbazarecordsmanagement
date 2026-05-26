@@ -129,7 +129,7 @@ as $$
       c.*,
       case
         when c.monthly_income = 0 then 'No Income / No Work'
-        when c.monthly_income < 10000 then 'Low Income'
+        when c.monthly_income <= 5000 then 'Low Income'
         when c.monthly_income < 20000 then 'Moderate Income'
         else 'Above Moderate'
       end as income_tier,
@@ -148,7 +148,7 @@ as $$
         end
         + case
           when c.monthly_income = 0 then 20
-          when c.monthly_income < 10000 then 15
+          when c.monthly_income <= 5000 then 15
           when c.monthly_income < 20000 then 8
           else 0
         end
@@ -163,7 +163,7 @@ as $$
         end,
         case
           when c.monthly_income = 0 then 'No income household'
-          when c.monthly_income < 10000 then 'Low income household'
+          when c.monthly_income <= 5000 then 'Low income household'
           when c.monthly_income < 20000 then 'Moderate income household'
           else null
         end

@@ -64,6 +64,70 @@ function roleRequiresBarangayAssignment(roleKey) {
   return normalizedRole === 'barangay_secretary' || normalizedRole === 'barangay_staff';
 }
 
+const ASSIGNABLE_PORTAL_ROLE_KEYS = ['admin', 'barangay_secretary'];
+const ASSIGNABLE_PORTAL_ROLE_FALLBACKS = [
+  {
+    key: 'admin',
+    name: 'Admin',
+    description: 'Can review, check, and approve assistance applications.',
+  },
+  {
+    key: 'barangay_secretary',
+    name: 'Barangay Secretary',
+    description: 'Can add, edit, and delete households and handle assistance applications.',
+  },
+];
+
+function normalizeAssignablePortalRole(roleKey) {
+  const normalizedRole = String(roleKey ?? '').trim().toLowerCase();
+  if (normalizedRole === 'super_admin' || normalizedRole === 'super admin') {
+    return 'admin';
+  }
+  if (normalizedRole === 'barangay_staff' || normalizedRole === 'barangay staff') {
+    return 'barangay_secretary';
+  }
+  return normalizedRole;
+}
+
+function formatPortalRoleName(roleKey, fallbackName = '') {
+  const normalizedRole = normalizeAssignablePortalRole(roleKey);
+  if (normalizedRole === 'barangay_secretary' || normalizedRole === 'barangay_staff') {
+    return 'Barangay Secretary';
+  }
+
+  if (normalizedRole === 'admin') {
+    return 'Admin';
+  }
+
+  return fallbackName || formatStatusLabel(roleKey);
+}
+
+function getAssignablePortalRoles(roles = []) {
+  const seenRoleGroups = new Set();
+  const rolesByGroup = new Map();
+
+  [...ASSIGNABLE_PORTAL_ROLE_FALLBACKS, ...roles].forEach((role) => {
+    const roleKey = normalizeAssignablePortalRole(role.key);
+    if (!ASSIGNABLE_PORTAL_ROLE_KEYS.includes(roleKey) || seenRoleGroups.has(roleKey)) {
+      return;
+    }
+
+    seenRoleGroups.add(roleKey);
+    rolesByGroup.set(roleKey, {
+      ...role,
+      key: roleKey,
+    });
+  });
+
+  return ASSIGNABLE_PORTAL_ROLE_KEYS
+    .map((roleKey) => rolesByGroup.get(roleKey))
+    .filter(Boolean)
+    .map((role) => ({
+      ...role,
+      name: formatPortalRoleName(role.key, role.name),
+    }));
+}
+
 function UserActions({ user, canManageUsers, onEdit, onDeactivate }) {
   if (!canManageUsers) {
     return <Badge variant="outline">View only</Badge>;
@@ -139,6 +203,7 @@ function UserFormModal({
 }) {
   const isCreate = mode === 'create';
   const requiresBarangayAssignment = roleRequiresBarangayAssignment(formState.role);
+  const assignableRoles = getAssignablePortalRoles(roles);
 
   return (
     <Dialog open onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
@@ -198,7 +263,7 @@ function UserFormModal({
           <label className="settings-field" htmlFor="user-role">
             <span>Role</span>
             <select id="user-role" name="role" value={formState.role} onChange={onChange} required>
-              {roles.filter((role) => ['super_admin', 'barangay_secretary'].includes(role.key)).map((role) => (
+              {assignableRoles.map((role) => (
                 <option key={role.key} value={role.key}>
                   {role.name}
                 </option>
@@ -322,11 +387,6 @@ function ProgramFormModal({
             </select>
           </label>
 
-          <label className="settings-field" htmlFor="program-sort-order">
-            <span>Sort order</span>
-            <input id="program-sort-order" name="sortOrder" type="number" min="0" value={formState.sortOrder} onChange={onChange} />
-          </label>
-
           <label className="settings-field" htmlFor="program-max-household">
             <span>Max active applications per household</span>
             <input
@@ -438,17 +498,6 @@ function ProgramFormModal({
                         value={requirement.documentGroup}
                         onChange={(event) => onRequirementChange(requirement.id, 'documentGroup', event.target.value)}
                         placeholder="eligibility"
-                      />
-                    </label>
-
-                    <label className="settings-field" htmlFor={`requirement-sort-${requirement.id}`}>
-                      <span>Sort order</span>
-                      <input
-                        id={`requirement-sort-${requirement.id}`}
-                        type="number"
-                        min="0"
-                        value={requirement.sortOrder}
-                        onChange={(event) => onRequirementChange(requirement.id, 'sortOrder', event.target.value)}
                       />
                     </label>
 
@@ -632,7 +681,7 @@ function SettingsPage({ session }) {
   }, []);
 
   const roleNameByKey = useMemo(
-    () => new Map(roles.map((role) => [role.key, role.name])),
+    () => new Map(roles.map((role) => [role.key, formatPortalRoleName(role.key, role.name)])),
     [roles]
   );
 
@@ -700,8 +749,8 @@ function SettingsPage({ session }) {
       return;
     }
 
-    const residentRole = roles.find((role) => role.key === 'resident');
-    const defaultRole = residentRole?.key || roles[0]?.key || '';
+    const assignableRoles = getAssignablePortalRoles(roles);
+    const defaultRole = assignableRoles[0]?.key || 'admin';
     const defaultBarangayId = roleRequiresBarangayAssignment(defaultRole)
       ? (barangays[0]?.id || barangays[0]?.code || '')
       : '';
@@ -731,7 +780,7 @@ function SettingsPage({ session }) {
       displayName: user.displayName,
       email: user.email,
       password: '',
-      role: user.role,
+      role: normalizeAssignablePortalRole(user.role),
       barangayId: user.barangayId || '',
       isActive: user.isActive,
     });
@@ -953,7 +1002,7 @@ function SettingsPage({ session }) {
                     label: 'Role',
                     render: (row) => (
                       <Badge variant="outline">
-                        {row.roleName || roleNameByKey.get(row.role) || row.role}
+                        {roleNameByKey.get(row.role) || formatPortalRoleName(row.role, row.roleName)}
                       </Badge>
                     ),
                   },

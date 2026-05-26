@@ -11,7 +11,7 @@ function LoginPage({ onLogin }) {
       title: 'Municipality of Barbaza',
       description: 'Social welfare records and assistance services for every barangay in Barbaza, Antique.',
       bullets: [
-        'Application queue management',
+        'Application management',
         'Household registry and profiling',
         'Role-based barangay access',
       ],

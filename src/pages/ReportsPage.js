@@ -687,8 +687,8 @@ function WorkloadTab({ workload, byProgram, isBarangayScoped, scopedBarangayName
           eyebrow="Workload"
           title="Pending by barangay"
           description={isBarangayScoped
-            ? `Queue pressure for ${scopedBarangayName}.`
-            : 'Queue pressure and approvals across all barangays.'}
+            ? `Workload pressure for ${scopedBarangayName}.`
+            : 'Workload pressure and approvals across all barangays.'}
         />
         <ExportBar
           label={`${(workload ?? []).length} barangay${(workload ?? []).length !== 1 ? 's' : ''}`}

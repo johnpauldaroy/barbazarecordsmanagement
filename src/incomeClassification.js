@@ -17,7 +17,7 @@ export const INCOME_TIERS = [
     key: 'low_income',
     label: 'Low Income',
     short: 'Low Income',
-    range: 'PHP 1 – 9,999/mo',
+    range: 'PHP 1 - 5,000/mo',
     color: '#c2410c',
     bgColor: '#ffedd5',
     textColor: '#9a3412',
@@ -28,7 +28,7 @@ export const INCOME_TIERS = [
     key: 'moderate',
     label: 'Moderate Income',
     short: 'Moderate',
-    range: 'PHP 10,000 – 19,999/mo',
+    range: 'PHP 5,001 - 19,999/mo',
     color: '#b45309',
     bgColor: '#fef3c7',
     textColor: '#92400e',
@@ -51,7 +51,7 @@ export const INCOME_TIERS = [
 export function classifyIncome(monthlyIncome) {
   const amount = Number(monthlyIncome ?? 0);
   if (Number.isNaN(amount) || amount === 0) return INCOME_TIERS[0];
-  if (amount < 10000) return INCOME_TIERS[1];
+  if (amount <= 5000) return INCOME_TIERS[1];
   if (amount < 20000) return INCOME_TIERS[2];
   return INCOME_TIERS[3];
 }

@@ -13,7 +13,7 @@ const demoSession = {
   name: 'Ana B. Ramos',
   role: 'Barangay Secretary',
   roleKey: 'barangay_secretary',
-  barangayName: 'Mayha',
+  barangayName: 'Palma',
 };
 
 export const isSupabaseEnabled = hasSupabaseConfig;
